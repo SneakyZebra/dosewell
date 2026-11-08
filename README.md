@@ -1,6 +1,12 @@
 # dosewell
 Dosewell by Williams Industries. A personal medication planner with dose reminders and a local medication log.
 
+## Free local interaction search
+
+Dosewell includes an offline adaptation of all eight CSV files on the [DDInter 2.0 download page](https://ddinter2.scbdd.com/download/). The exports contain 160,235 distinct unordered drug pairs across 1,939 drug entries. Source release May 14, 2024. Files retrieved November 8, 2026. These exports are a subset of the full DDInter website. Dosewell merges duplicate records and packs the original pair ratings into a local lookup index. It preserves the source’s unknown ratings. An unlisted combination has no safety determination.
+
+DDInter 2.0 © Computational Biology & Drug Design Group, Tian Y. et al., [Nucleic Acids Research](https://doi.org/10.1093/nar/gkae726). The source database and Dosewell’s adapted data in `ddinter-data.js` are available under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). See [DDInter terms and disclaimer](https://ddinter2.scbdd.com/terms/). No endorsement is implied. The data may contain errors or omissions.
+
 ## Optional DrugBank interaction search
 
 The web planner includes a separate online checker for DrugBank product matches and drug interactions. Its controls appear only when a gateway is configured. Visitors choose which names to search and confirm a product for each before checking the list. The offline report operates independently.

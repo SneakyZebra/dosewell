@@ -192,3 +192,5 @@ footer .plan-move-link{color:#446452;text-decoration:underline;margin-left:5px}
 .db-panel input,.db-panel select{max-width:100%;padding:10px;border:1px solid #899c94;border-radius:7px;font:inherit;font-size:16px}
 .db-panel button,.db-panel select{min-height:44px}.db-panel [role=status]:empty{display:none}.db-findings{list-style:none;padding:0}
 .db-findings strong{text-transform:capitalize}.db-panel :focus-visible{outline:3px solid #317c66;outline-offset:2px}
+
+.ic-extra-rating{display:inline-block;margin-left:10px}

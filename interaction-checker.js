@@ -1,3 +1,4 @@
+import {ddPairCount} from './ddinter.js';
 import {attachDrugBank} from './drugbank-checker.js';
 import {catalogSize,compare,identify,labelNotes,pairRuleCount,searchProducts,warningLabel} from './rules.js';
 import {h} from './view.js';
@@ -25,12 +26,12 @@ export function includeSavedInCheck(id){
   keepDraft();
 }
 function sourceLink(url){
-  return url?'<a class="text-link" href="'+h(url)+'" target="_blank" rel="noopener noreferrer">'+(url.includes('medlineplus.gov')?'Read MedlinePlus guidance':'Read the DailyMed label')+' '+icon('go',14)+'</a>':'';
+  return url?'<a class="text-link" href="'+h(url)+'" target="_blank" rel="noopener noreferrer">'+(url.includes('ddinter2.scbdd.com')?'View the DDInter source':url.includes('medlineplus.gov')?'Read MedlinePlus guidance':'Read the DailyMed label')+' '+icon('go',14)+'</a>':'';
 }
 function profileText(name){
   const profile=identify(name);
   if(!profile.matched)return 'Name unrecognized. Check the spelling and formulation.';
-  const form=profile.route==='other'?' · Outside the oral warning list':profile.route==='unspecified'?' · Confirm the formulation':'';
+  const form=profile.route==='other'?' · Confirm the route and formulation':profile.route==='unspecified'?' · Confirm the formulation':'';
   return profile.components.join(' + ')+form;
 }
 function results(entries){
@@ -48,7 +49,8 @@ function results(entries){
 function reportItem(item){
   if(item.group==='unknown')return '<li class="ic-unknown">'+h(item.title)+'</li>';
   const marker=warningLabel[item.level]||(item.group==='food'?'Food and drink':'If this condition applies');
-  return '<li class="ic-finding '+(item.level==='avoid'?'ic-avoid':'')+'"><span class="ic-marker">'+h(marker)+'</span><h4>'+h(item.title)+'</h4>'+
+  const rating=item.ddSeverity && !item.source?.includes('ddinter2.scbdd.com')?'<span class="ic-marker ic-extra-rating">DDInter · '+h(item.ddSeverity==='Unknown'?'Severity unknown':item.ddSeverity)+'</span>':'';
+  return '<li class="ic-finding '+(item.level==='avoid'||item.ddSeverity==='Major'?'ic-avoid':'')+'"><span class="ic-marker">'+h(marker)+'</span>'+rating+'<h4>'+h(item.title)+'</h4>'+
     (item.drug?'<p class="ic-ingredient">'+h(item.drug)+'</p>':item.ingredients?'<p class="ic-ingredient">Ingredients reviewed · '+h(item.ingredients.join(' + '))+'</p>':'')+
     '<p>'+h(item.reason)+'</p>'+sourceLink(item.source)+'</li>';
 }
@@ -65,8 +67,8 @@ export function showInteractionChecker(main,state){
     '<div id="ic-matches"></div><p id="ic-feedback" role="status"></p><ul id="ic-selection" aria-label="Selected medicines"></ul>'+
     '<div class="ic-list-actions"><button id="ic-check" class="btn primary" type="button">Check interactions</button><button id="ic-restore" class="text-link" type="button">Use my saved list</button><button id="ic-clear" class="text-link" type="button">Clear checker</button></div></section>'+
     '<section class="panel ic-results" aria-labelledby="ic-results-title"><h2 id="ic-results-title" tabindex="-1">Interaction report</h2>'+
-    '<p>Dosewell checks '+pairRuleCount+' selected oral drug pairs. Other interactions may be missing, even for recognized medicines. Ask your pharmacist before changing a prescribed dose.</p>'+
-    '<div id="ic-report"></div><details class="ic-coverage"><summary>Coverage and sources</summary><p>Search '+catalogSize.toLocaleString('en-US')+' product names and forms from the November 2026 NLM RxTerms catalog. Dosewell screens '+pairRuleCount+' selected oral ingredient pairs using DailyMed labels and MedlinePlus guidance. An ingredient match identifies a medicine and does not establish safety.</p><p>Food and condition notes cover selected label precautions. They do not use your medical history. Dose, route, supplements and other health factors may change the risk.</p></details></section></div>';
+    '<p>Dosewell searches '+ddPairCount.toLocaleString('en-US')+' published drug pairs on this device. A missing result cannot confirm that medicines are safe together. Ask your pharmacist before changing a dose.</p>'+
+    '<div id="ic-report"></div><details class="ic-coverage"><summary>Coverage and sources</summary><p>The <a class="text-link" href="https://ddinter2.scbdd.com/download/" target="_blank" rel="noopener noreferrer">DDInter 2.0 downloadable records</a> provide ingredient pairs and their reported severity. Dosewell merged duplicate records from all eight download files. The published site includes additional records. Dose, timing and medical history are outside this search.</p><p>DDInter 2.0 © Computational Biology &amp; Drug Design Group. Source release dated May 14, 2024. Downloaded November 8, 2026. Dosewell’s adapted index is shared under <a class="text-link" href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC-SA 4.0</a> for noncommercial use. The source may contain errors and omissions.</p><p>Search '+catalogSize.toLocaleString('en-US')+' product names and forms from the November 2026 NLM RxTerms catalog. Dosewell also explains '+pairRuleCount+' selected oral ingredient pairs using DailyMed labels and MedlinePlus guidance. An ingredient match identifies a medicine and does not establish safety.</p><p>Food and condition notes cover selected label precautions. They do not use your medical history. Dose, route, supplements and other health factors may change the risk.</p></details></section></div>';
   const el=id=>main.querySelector('#'+id);
   const updateDrugBank=attachDrugBank(main);
   const input=el('ic-query'),matches=el('ic-matches'),feedback=el('ic-feedback'),report=el('ic-report');
@@ -85,7 +87,7 @@ export function showInteractionChecker(main,state){
         continue;
       }
       content+='<section class="ic-group"><h3>'+label+' <small>('+items.length+')</small></h3>';
-      if(id==='unknown')content+='<p>At least part of each pair falls outside the available rules. A pharmacist can check the full combination.</p>';
+      if(id==='unknown')content+='<p>At least one ingredient combination lacks a matching record for these entries. Ask your pharmacist to check the full combination.</p>';
       if(id==='condition')content+='<p>These are label precautions to discuss if the condition applies to you.</p>';
       content+='<ul>'+ (id==='unknown'?items.slice(0,unknownLimit):items).map(reportItem).join('')+'</ul>';
       if(id==='unknown'&&items.length>unknownLimit)content+='<button type="button" data-ic-more class="text-link">Show more ('+(items.length-unknownLimit)+' remaining)</button>';

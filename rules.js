@@ -1,4 +1,5 @@
-import {products} from './rxterms.js';
+import {ddComponents,ddName,ddRating,ddSuggestions} from './ddinter.js';
+import {products,rxBrands} from './rxterms.js';
 const labelId = {
   simvastatin: '8f55d5de-5a4f-4a39-8c84-c53976dd6af9',
   nimodipine: 'e660fa26-b5c4-4d6d-8887-9e22b6666a10',
@@ -90,6 +91,10 @@ for(const [display,oral,components] of products){
   if(!bareProducts.has(base))bareProducts.set(base,[]);
   bareProducts.get(base).push(product);
 }
+for(const [brand,displays] of Object.entries(rxBrands)){
+  const variants=displays.map(display=>namedProducts.get(display.toLowerCase()));
+  if(variants.every(Boolean))bareProducts.set(brand,variants);
+}
 export const catalogSize=products.length;
 export const pairRuleCount=rules.size;
 export function searchProducts(query,limit=8){
@@ -101,7 +106,10 @@ export function searchProducts(query,limit=8){
       prefix.push(product);if(prefix.length===limit)break;
     }else if(matches.length<limit&&terms.every(term=>product.search.includes(term)))matches.push(product);
   }
-  return [...prefix,...matches].slice(0,limit);
+  const source=ddSuggestions(query,limit);
+  const exact=source.filter(p=>p.display.toLowerCase()===query.trim().toLowerCase());
+  const combined=[...exact,...prefix,...source,...matches];
+  return [...new Map(combined.map(p=>[p.display.toLowerCase(),p])).values()].slice(0,limit);
 }
 export function identify(name){
   const full=name.trim().toLowerCase();
@@ -115,6 +123,8 @@ export function identify(name){
   if(variants?.length)return {components:[],route:'unknown',matched:false};
   const known=ingredient(name);
   if(known)return {components:combos[known]||[known],route:'unspecified',matched:true};
+  const reference=ddName(name);
+  if(reference)return {components:[reference.toLowerCase()],route:name.includes('(')?'other':'unspecified',matched:true};
   return {components:[],route:'unknown',matched:false};
 }
 function ruleIngredients(profile){
@@ -125,11 +135,20 @@ function ruleIngredients(profile){
   }
   return list;
 }
-const rank={avoid:0,duplicate:1,review:2,unassessed:3};
-export const warningLabel={avoid:'Label advises avoidance',review:'Pharmacist review',duplicate:'Possible duplicate',unassessed:'Unassessed'};
+const rank={avoid:0,major:1,duplicate:2,review:3,moderate:4,minor:5,unknownSeverity:6,unassessed:7};
+export const warningLabel={avoid:'Label advises avoidance',review:'Pharmacist review',duplicate:'Possible duplicate',major:'DDInter · Major',moderate:'DDInter · Moderate',minor:'DDInter · Minor',unknownSeverity:'DDInter · Severity unknown',unassessed:'Unassessed'};
+const ddLevels={Major:'major',Moderate:'moderate',Minor:'minor',Unknown:'unknownSeverity'};
+const ddReasons={
+  Major:'DDInter flags a potentially serious interaction. Contact your pharmacist or prescriber promptly to review this combination.',
+  Moderate:'DDInter flags an interaction that may warrant monitoring or a change to the treatment plan. Ask your pharmacist how it applies to you.',
+  Minor:'DDInter lists a minor interaction. Your pharmacist can explain what to watch for with your dose and formulation.',
+  Unknown:'DDInter lists this combination, but does not assign a severity. Ask a pharmacist to review it.'
+};
+const generalIngredient=name=>aliases.get(clean(name))||name;
 export function compare(meds){
   const profiles=meds.map(m=>identify(m.name));
   const ingredients=profiles.map(ruleIngredients);
+  const sourceIds=meds.map((m,i)=>ddComponents(m.name,profiles[i]));
   const result=[];
   for(let i=0;i<meds.length;i++)for(let j=i+1;j<meds.length;j++){
     const a=meds[i],b=meds[j],details=[];
@@ -147,12 +166,24 @@ export function compare(meds){
         details.push({...match,ingredients:[x,y]});
       }
     }
-    details.sort((x,y)=>rank[x.level]-rank[y.level]);
-    const hasGaps=!profiles[i].matched||!profiles[j].matched||profiles[i].route==='other'||profiles[j].route==='other'||
+    for(const [leftIndex,left] of profiles[i].components.entries()){
+      for(const [rightIndex,right] of profiles[j].components.entries()){
+        const severity=ddRating(sourceIds[i][leftIndex],sourceIds[j][rightIndex]);
+        if(!severity)continue;
+        const x=generalIngredient(left),y=generalIngredient(right);
+        covered.add(x+'|'+y);
+        const existing=details.find(d=>d.ingredients?.[0]===x&&d.ingredients[1]===y);
+        if(existing){existing.ddSeverity=severity;continue;}
+        details.push({level:ddLevels[severity],ddSeverity:severity,reason:ddReasons[severity],ingredients:[left,right],source:'https://ddinter2.scbdd.com/download/'});
+      }
+    }
+    const priority=detail=>Math.min(rank[detail.level],rank[ddLevels[detail.ddSeverity]]??Infinity);
+    details.sort((x,y)=>priority(x)-priority(y));
+    const hasGaps=!profiles[i].matched||!profiles[j].matched||
       profiles[i].components.some(left=>profiles[j].components.some(right=>left!==right&&!covered.has((aliases.get(clean(left))||left)+'|'+(aliases.get(clean(right))||right))));
-    result.push({a,b,details,hasGaps,...(details[0]||{level:'unassessed',reason:'No matching rule in Dosewell for this pair.'})});
+    result.push({a,b,details,hasGaps,priority:details.length?priority(details[0]):rank.unassessed,...(details[0]||{level:'unassessed',reason:'No matching rule in Dosewell for this pair.'})});
   }
-  return result.sort((x,y)=>rank[x.level]-rank[y.level]);
+  return result.sort((x,y)=>x.priority-y.priority);
 }
 
 const notes={
