@@ -116,21 +116,35 @@ function calendarSeries(med,now){
     return next?[{uid:med.id+'-'+time.replace(':',''),start:next.day.replaceAll('-','')+'T'+time.replace(':','')+'00',rule}]:[];
   });
 }
+function calendarDocument(events,count){
+  const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Dosewell//Medication Schedule//EN','CALSCALE:GREGORIAN','X-WR-CALNAME:Dosewell medications',...events,'END:VCALENDAR'];
+  return {count,text:lines.map(fold).join('\r\n')+'\r\n'};
+}
+function displayAlarm(minutes,description){
+  return ['BEGIN:VALARM','ACTION:DISPLAY','TRIGGER:'+(minutes?'-PT'+minutes+'M':'PT0M'),'DESCRIPTION:'+escCalendar(description),'END:VALARM'];
+}
 export function calendarFile(state,now=new Date()){
-  const lines=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Dosewell//Medication Schedule//EN','CALSCALE:GREGORIAN','X-WR-CALNAME:Dosewell medications'];
+  const lines=[];
   let count=0;
   for(const med of state.meds){
     if(med.mode==='list')continue;
     for(const {uid,start,rule} of calendarSeries(med,now)){
       count++;
-      const summary=escCalendar(medicationTitle(med)+' · '+med.dose);
-      lines.push('BEGIN:VEVENT','UID:'+uid+'@dosewell','DTSTAMP:'+utcStamp(now),'DTSTART:'+start,'DURATION:PT1M','RRULE:'+rule,'SUMMARY:'+summary,'DESCRIPTION:'+escCalendar('Scheduled dose. Follow your current prescription.'),'CLASS:PRIVATE','TRANSP:TRANSPARENT');
-      for(const minutes of [0,advanceMinutes(med,state.settings)].filter((v,i)=>i===0||v>0)){
-        lines.push('BEGIN:VALARM','ACTION:DISPLAY','TRIGGER:'+(minutes?'-PT'+minutes+'M':'PT0M'),'DESCRIPTION:'+escCalendar((minutes?'Upcoming dose in '+minutes+' minutes. ':'Scheduled dose. ')+medicationTitle(med)+' · '+med.dose),'END:VALARM');
-      }
+      const summary=medicationTitle(med)+' · '+med.dose;
+      lines.push('BEGIN:VEVENT','UID:'+uid+'@dosewell','DTSTAMP:'+utcStamp(now),'DTSTART:'+start,'DURATION:PT1M','RRULE:'+rule,'SUMMARY:'+escCalendar(summary),'DESCRIPTION:Scheduled dose. Follow your current prescription.','CLASS:PRIVATE','TRANSP:TRANSPARENT');
+      lines.push(...displayAlarm(0,'Scheduled dose. '+summary));
+      const lead=advanceMinutes(med,state.settings);
+      if(lead>0)lines.push(...displayAlarm(lead,'Upcoming dose in '+lead+' minutes. '+summary));
       lines.push('END:VEVENT');
     }
   }
-  lines.push('END:VCALENDAR');
-  return {count,text:lines.map(fold).join('\r\n')+'\r\n'};
+  return calendarDocument(lines,count);
+}
+export function calendarTestFile(now=new Date()){
+  const at=new Date(Math.ceil(now.getTime()/60000)*60000+10*60000);
+  const stamp=utcStamp(at);
+  const event=['BEGIN:VEVENT','UID:test-'+stamp+'@dosewell','DTSTAMP:'+utcStamp(now),'DTSTART:'+stamp,'DURATION:PT1M',
+    'SUMMARY:Dosewell calendar test','DESCRIPTION:This is a test of your Calendar alerts.','TRANSP:TRANSPARENT',
+    ...displayAlarm(0,'Dosewell calendar test'),...displayAlarm(2,'Dosewell calendar test in 2 minutes'),'END:VEVENT'];
+  return {...calendarDocument(event,1),at,warningAt:new Date(at.getTime()-120000)};
 }

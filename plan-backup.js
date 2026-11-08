@@ -22,7 +22,7 @@ export function hasPlan(s){
   return s.meds.length>0||Object.keys(s.history||{}).length>0||Object.keys(s.taken||{}).length>0||Object.keys(s.supplies||{}).length>0;
 }
 export function readBackup(raw){
-  const fail=()=>{throw Error('Choose an unmodified Dosewell plan file downloaded from the previous address.')};
+  const fail=()=>{throw Error('Choose an unmodified private plan file exported from Dosewell.')};
   let wrapper;
   try{wrapper=JSON.parse(raw,(k,v)=>{if(['__proto__','prototype','constructor'].includes(k))fail();return v})}catch{fail()}
   if(!plain(wrapper)||wrapper.format!=='dosewell-plan-backup-v1')fail();

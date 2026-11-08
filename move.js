@@ -11,7 +11,7 @@ function download(){
   if(!hasPlan(state)){status.textContent='No saved plan was found in this browser.';return}
   const url=URL.createObjectURL(new Blob([exportBackup(state)],{type:'application/json'}));
   const a=document.createElement('a');a.href=url;a.download='Dosewell-private-plan.json';document.body.append(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),60000);status.textContent='On the new site, choose this file to import the plan. Keep it private because it contains your medication information.';
+  setTimeout(()=>URL.revokeObjectURL(url),60000);status.textContent='Open Dosewell where you want to use this plan, then choose the file on the Transfer a saved plan page. Keep the file private.';
 }
 const status=make('p','');status.setAttribute('role','status');
 if(location.origin===prior){
@@ -19,13 +19,17 @@ if(location.origin===prior){
   if(hasPlan(read())){const save=action('Download private plan');save.onclick=download;panel.append(save)}else panel.append(make('p','No saved plan was found here. If you have entries on another device, open this page there.'));
   panel.append(status,link('Continue to the new site',pages+'move.html'));
 }else{
-  panel.append(make('h2','Bring your plan to this address'),make('p','Download a private plan file from the previous address, then select it here. Dosewell reads the file in your browser.'));
-  const old=link('Open the previous address to download my plan',prior+'/move.html');old.target='_blank';old.rel='noopener noreferrer';panel.append(old);
+  panel.append(make('h2','Move between Safari and your Home Screen'),make('p','Open this page where your medication list is saved and download your private plan. Then open this page from the other Dosewell icon or browser and import the file. The file includes medications, schedules, dose history and refill counts.'));
+  if(hasPlan(read())){
+    const save=action('Download private plan');save.onclick=download;panel.append(save);
+  }
+  const old=link('Download a plan from the previous Dosewell address',prior+'/move.html');old.target='_blank';old.rel='noopener noreferrer';
+  const legacy=document.createElement('details');legacy.className='iphone-details';legacy.append(make('summary','Moving from the previous website?'),old);
   const picker=document.createElement('input');picker.type='file';picker.accept='.json,application/json';picker.hidden=true;
   const select=action('Choose plan file');const summary=make('p',''),confirm=action('Import this plan');confirm.hidden=true;
   let pending=null;
-  panel.append(make('p',''),select,picker,summary,confirm,status,link('Open Dosewell','./'));
-  if(hasPlan(read())){select.disabled=true;status.textContent='This browser already has a Dosewell plan at this address. Its entries are preserved.'}
+  panel.append(make('p',''),select,picker,summary,confirm,status,link('Open iPhone setup','./#reminders/iphone'),link('Open Dosewell','./'),legacy);
+  if(hasPlan(read())){select.disabled=true;status.textContent='This copy already has saved entries. You can export them here. Import is available in an empty copy.'}
   select.onclick=()=>picker.click();
   picker.onchange=async()=>{
     pending=null;confirm.hidden=true;summary.textContent='';status.textContent='';
@@ -43,7 +47,7 @@ if(location.origin===prior){
     try{
       await change(s=>{if(storageStatus()||hasPlan(s))throw Error('Import needs an empty, writable Dosewell plan at this address.');Object.assign(s,pending)});
       if(storageStatus())throw Error('This browser could not persist the import. Keep the original file and try a browser with local storage enabled.');
-      pending=null;confirm.hidden=true;select.hidden=true;summary.textContent='';status.textContent='Plan imported. Use this address from now on. Enable browser notifications here if you use them, and close the old planner to avoid duplicate in-page alerts.';
+      pending=null;confirm.hidden=true;select.hidden=true;summary.textContent='';status.textContent='Plan imported. Use this copy for future changes. Your existing Calendar events stay in Calendar.';
     }catch(err){status.textContent=err.message;confirm.disabled=false}
   };
 }

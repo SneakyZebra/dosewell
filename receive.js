@@ -1,3 +1,4 @@
+import {onAppleMobile,mountAppleCalendar} from './iphone-setup.js';
 import {showAndroidClock} from './android-clock.js';
 import {readTransfer,saveCalendarFile} from './reminder-transfer.js';
 import {calendarFile,scheduleLabel} from './schedule.js';
@@ -11,6 +12,11 @@ function render(){
   const now=new Date();
   const active=plan.meds.filter(m=>calendarFile({meds:[m],settings:plan.settings},now).count);
   if(!active.length){panel.append(element('h2','This schedule has ended'),element('p','There are no future doses in this copy. Ask the sender for an updated schedule.'));return}
+  if(onAppleMobile()&&new URLSearchParams(location.search).get('setup')!=='clock'){
+    mountAppleCalendar(panel,()=>plan);
+    panel.append(element('p','This is a shared copy. Ask the sender for an updated file when the schedule changes.'));
+    return;
+  }
   const clockSetup=document.createElement('details');clockSetup.className='export-guide received-clock';
   clockSetup.append(element('summary','Android Clock setup'));
   const body=document.createElement('div');clockSetup.append(body);

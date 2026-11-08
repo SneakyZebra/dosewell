@@ -63,19 +63,23 @@ export function readTransfer(hash){
 
 export function saveCalendarFile(state,now=new Date()){
   const cal=calendarFile(state,now);
+  return downloadCalendarFile(cal);
+}
+
+export function downloadCalendarFile(cal,name=calendarName){
   if(!cal.count)return false;
   const address=URL.createObjectURL(new Blob([cal.text],{type:'text/calendar;charset=utf-8'}));
   const link=document.createElement('a');
-  link.href=address;link.download=calendarName;
+  link.href=address;link.download=name;
   document.body.append(link);link.click();link.remove();
   setTimeout(()=>URL.revokeObjectURL(address),60000);
   return true;
 }
 
 // File sharing support varies by both the browser and the file type.
-export function shareableCalendar(cal,nav=navigator){
+export function shareableCalendar(cal,nav=navigator,name=calendarName){
   if(typeof File!=='function'||typeof nav.share!=='function'||typeof nav.canShare!=='function')return null;
-  const file=new File([cal.text],calendarName,{type:'text/calendar'});
+  const file=new File([cal.text],name,{type:'text/calendar'});
   try{return nav.canShare({files:[file]})?file:null}catch{return null}
 }
 export function transferChoice(cal,url,nav=navigator){
