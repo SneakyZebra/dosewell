@@ -1,9 +1,10 @@
+import {showInteractionChecker,includeSavedInCheck} from './interaction-checker.js';
 import {onAppleMobile,showIphoneSetup} from './iphone-setup.js';
 import {nativePlatform,nativeAction,paintNative,syncNative,importNativeFile} from './native-alarms.js';
 import {alignDoseKeys,logDose,logAsNeeded,undoLog,snoozeDose,updateSupply,doseAt,recordedStatus} from './dose-log.js';
 import {icon} from './icons.js';
 import {read,change,storageStatus,onLocalChange} from './store.js';
-import {nav,navItems,overview,historyPage,medicationPage,interactionPage,remindersPage,h,btnIcon} from './view.js';
+import {nav,navItems,overview,historyPage,medicationPage,remindersPage,h,btnIcon} from './view.js';
 import {showEditor} from './form.js';
 import {compare} from './rules.js';
 import {saveCalendarFile} from './reminder-transfer.js';
@@ -29,7 +30,8 @@ function render(){
   const period=['7','30','all'].includes(parts[1])?parts[1]:'7';
   const iphoneSetup=!nativePlatform&&view==='reminders'&&parts[1]==='iphone';
   if(iphoneSetup)showIphoneSetup(main,read);
-  else main.innerHTML=view==='overview'?overview(state,selected,part):view==='history'?historyPage(state,period):view==='medications'?medicationPage(state,filter):view==='interactions'?interactionPage(state):remindersPage(state);
+  else if(view==='interactions')showInteractionChecker(main,state);
+  else main.innerHTML=view==='overview'?overview(state,selected,part):view==='history'?historyPage(state,period):view==='medications'?medicationPage(state,filter):remindersPage(state);
   paintNative();
   document.title=(iphoneSetup?'iPhone setup':navItems.find(([v])=>view===v)?.[2]||'Overview')+' | Dosewell';
   document.querySelector('#setup-prompt').hidden=!offerPhoneSetup||view==='reminders'||view==='interactions'||!state.meds.some(m=>m.mode!=='list');
@@ -60,6 +62,8 @@ function openEditor(med,cat){
         for(const key of Object.keys(s.snoozes))if(key.startsWith(item.id+'|'))delete s.snoozes[key];
       }
     });
+    includeSavedInCheck(item.id);
+    if(view==='interactions')render();
     dialog.close();const pairs=compare(state.meds).filter(p=>p.a.id===item.id||p.b.id===item.id);
     const flags=pairs.filter(p=>p.level!=='unassessed');
     if(flags.length){location.hash='interactions';toast('Medication saved. Review the interaction warning'+(flags.length===1?'':'s')+'.')}

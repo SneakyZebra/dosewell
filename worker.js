@@ -1,6 +1,6 @@
-const cacheName='dosewell-app-13';
+const cacheName='dosewell-app-14';
 const shell=['./','./index.html','./styles.css','./app.js','./iphone-setup.js','./native-alarms.js','./mobile-apps.html','./mobile-apps.js','./dose-log.js','./schedule.js',
-  './store.js','./view.js','./icons.js','./rules.js','./form.js','./exports.js',
+  './store.js','./view.js','./icons.js','./rules.js','./rxterms.js','./interaction-checker.js','./form.js','./exports.js',
   './phone-alarms.js','./android-clock.js','./clock-bridge.js','./clock-install.html','./reminder-transfer.js','./receive.html','./receive.js','./label-reader.js','./scan.js','./icon.svg','./inter.woff2',
   './move.html','./move.js','./plan-backup.js','./app.webmanifest','./app-192.png','./app-512.png'];
 const known=new Set(shell.map(path=>new URL(path,self.registration.scope).href));
