@@ -116,8 +116,8 @@ function labelWarning(left,right,x,y,rule){
   }
   return left.route==='other'||right.route==='other'?null:rule;
 }
-const rank={contraindicated:-1,avoid:0,major:1,duplicate:2,review:3,moderate:4,minor:5,unknownSeverity:6,unassessed:7};
-export const warningLabel={contraindicated:'Contraindicated · capsule label',avoid:'Label advises avoidance',review:'Pharmacist review',duplicate:'Possible duplicate',major:'DDInter · Major',moderate:'DDInter · Moderate',minor:'DDInter · Minor',unknownSeverity:'DDInter · Severity unknown',unassessed:'Unassessed'};
+const rank={formReview:6,contraindicated:-1,avoid:0,major:1,duplicate:2,review:3,moderate:4,minor:5,unknownSeverity:6,unassessed:7};
+export const warningLabel={formReview:'Possible interaction · Confirm formulation',contraindicated:'Contraindicated · capsule label',avoid:'Label advises avoidance',review:'Pharmacist review',duplicate:'Possible duplicate',major:'DDInter · Major',moderate:'DDInter · Moderate',minor:'DDInter · Minor',unknownSeverity:'DDInter · Severity unknown',unassessed:'Unassessed'};
 const ddLevels={Major:'major',Moderate:'moderate',Minor:'minor',Unknown:'unknownSeverity'};
 const ddReasons={
   Major:'DDInter flags a potentially serious interaction. Contact your pharmacist or prescriber promptly to review this combination.',
@@ -155,7 +155,14 @@ export function compare(meds){
         if(!severity){
           if(!covered.has(x+'|'+y) && (sourceIds[i][leftIndex]===undefined || sourceIds[j][rightIndex]===undefined)){
             const general=ddRating(references[i][leftIndex],references[j][rightIndex]);
-            if(general)routeNotes.push({ingredients:[left,right],severity:general});
+            if(general){
+              const unresolved=[sourceIds[i][leftIndex]===undefined?profiles[i]:null,sourceIds[j][rightIndex]===undefined?profiles[j]:null].filter(Boolean);
+              const uncertainSystemic=unresolved.every(p=>p.route==='other' && (!p.form || ['injectable','implant'].includes(p.form)));
+              if(uncertainSystemic){
+                details.push({ingredients:[left,right],ddSeverity:general,level:'formReview',source:'https://ddinter2.scbdd.com/download/',
+                  reason:'DDInter lists an interaction between these ingredients. The record does not establish whether it applies to the selected formulations. Ask your pharmacist to check the products and routes before changing a dose.'});
+              }else routeNotes.push({ingredients:[left,right],severity:general});
+            }
           }
           continue;
         }

@@ -46,7 +46,7 @@ function reportItem(item){
     return '<li class="ic-unknown">'+h(item.title)+notes+'</li>';
   }
   const marker=warningLabel[item.level]||(item.group==='food'?'Food and drink':'If this condition applies');
-  const rating=item.ddSeverity && !item.source?.includes('ddinter2.scbdd.com')?'<span class="ic-marker ic-extra-rating">DDInter · '+h(item.ddSeverity==='Unknown'?'Severity unknown':item.ddSeverity)+'</span>':'';
+  const rating=item.ddSeverity && (item.level==='formReview'||!item.source?.includes('ddinter2.scbdd.com'))?'<span class="ic-marker ic-extra-rating">DDInter · '+h(item.ddSeverity==='Unknown'?'Severity unknown':item.ddSeverity)+'</span>':'';
   return '<li class="ic-finding '+(item.level==='contraindicated'||item.level==='avoid'||item.ddSeverity==='Major'?'ic-avoid':'')+'"><span class="ic-marker">'+h(marker)+'</span>'+rating+'<h4>'+h(item.title)+'</h4>'+
     (item.drug?'<p class="ic-ingredient">'+h(item.drug)+'</p>':item.ingredients?'<p class="ic-ingredient">Ingredients reviewed · '+h(item.ingredients.join(' + '))+'</p>':'')+
     '<p>'+h(item.reason)+'</p>'+(item.secondarySource?sourceLink(item.source,item.level==='contraindicated'?'Capsule prescribing information':'Oral solution prescribing information')+' · '+sourceLink(item.secondarySource,item.level==='contraindicated'?'Oral solution prescribing information':'Capsule prescribing information'):sourceLink(item.source))+'</li>';

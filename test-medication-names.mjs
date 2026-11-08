@@ -44,6 +44,9 @@ sameDrug(['Tylenol PM','Tylenol PM 500 MG / 25 MG Oral Tablet','acetaminophen 50
 sameDrug(['Wellbutrin XL','bupropion HCl XL 150 mg','Wellbutrin XR (Oral Pill)'],'Zoloft');
 sameDrug(['Toprol XL','metoprolol succinate ER 25 mg','Toprol-XL (metoprolol succinate) 25mg'],'Nimotop');
 sameDrug(['Nimotop','nimodipine (Nimotop) 30 mg capsule','NIMOTOP (Oral Pill)'],'Vaprisol');
+sameDrug(['Lovenox','Lovenox (enoxaparin)','enoxaparin','enoxaparin (injectable)'],'warfarin');
+const injection=compare([{name:'Lovenox'},{name:'warfarin'}])[0];
+assert.equal(injection.level,'formReview');assert.equal(injection.ddSeverity,'Major');assert.ok(injection.hasGaps);
 sameDrug(['Zoladex','Goserelin','Zoladex (Implant)'],'Simvastatin');
 assert.deepEqual(identify('Advil PM').components,['diphenhydramine','ibuprofen']);
 assert.deepEqual(identify('Zofran ODT').components,['ondansetron']);
