@@ -1,5 +1,5 @@
-const cacheName='dosewell-app-9';
-const shell=['./','./index.html','./styles.css','./app.js','./dose-log.js','./schedule.js',
+const cacheName='dosewell-app-10';
+const shell=['./','./index.html','./styles.css','./app.js','./native-alarms.js','./mobile-apps.html','./mobile-apps.js','./dose-log.js','./schedule.js',
   './store.js','./view.js','./icons.js','./rules.js','./form.js','./exports.js',
   './phone-alarms.js','./android-clock.js','./clock-bridge.js','./clock-install.html','./reminder-transfer.js','./receive.html','./receive.js','./label-reader.js','./scan.js','./icon.svg','./inter.woff2',
   './move.html','./move.js','./plan-backup.js','./app.webmanifest','./app-192.png','./app-512.png'];

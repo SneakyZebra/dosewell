@@ -1,3 +1,4 @@
+import {nativePlatform,nativeAction,paintNative,syncNative,importNativeFile} from './native-alarms.js';
 import {alignDoseKeys,logDose,logAsNeeded,undoLog,snoozeDose,updateSupply,doseAt,recordedStatus} from './dose-log.js';
 import {icon} from './icons.js';
 import {read,change,storageStatus,onLocalChange} from './store.js';
@@ -15,7 +16,7 @@ document.querySelector('#new-address').hidden=location.hostname!=='dosewell-medi
 let offerPhoneSetup=false;
 const alarmContainer=document.querySelector('#alarms');
 for(const el of document.querySelectorAll('[data-icon]'))el.innerHTML=icon(el.dataset.icon,16);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./worker.js').then(r=>{workerRegistration=r}).catch(()=>{});
+if(!nativePlatform&&'serviceWorker' in navigator)navigator.serviceWorker.register('./worker.js').then(r=>{workerRegistration=r}).catch(()=>{});
 navigator.serviceWorker?.addEventListener('message',e=>{if(e.data?.view==='overview')location.hash='overview'});
 function toast(msg){const t=document.querySelector('#toast');t.textContent=msg;t.hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.hidden=true,5200)}
 function render(){
@@ -26,6 +27,7 @@ function render(){
   document.querySelector('#nav').innerHTML=nav(view);
   const period=['7','30','all'].includes(parts[1])?parts[1]:'7';
   main.innerHTML=view==='overview'?overview(state,selected,part):view==='history'?historyPage(state,period):view==='medications'?medicationPage(state,filter):view==='interactions'?interactionPage(state):remindersPage(state);
+  paintNative();
   document.title=(navItems.find(([v])=>view===v)?.[2]||'Overview')+' | Dosewell';
   document.querySelector('#setup-prompt').hidden=!offerPhoneSetup||view==='reminders'||view==='interactions'||!state.meds.some(m=>m.mode!=='list');
   const msg=storageStatus(),warning=document.querySelector('#storage-warning');warning.textContent=msg;warning.hidden=!msg;
@@ -38,7 +40,7 @@ function route(){
 }
 window.addEventListener('hashchange',route);
 onLocalChange(()=>{render();refreshAlarms()});
-async function save(fn){await change(fn);render();refreshAlarms()}
+async function save(fn){await change(fn);render();refreshAlarms();syncNative()}
 function openDialog(title,content){
   dialog.innerHTML='<div class="modal-head"><h2 id="dialog-title">'+title+'</h2>'+btnIcon('close','Close dialog','close')+'</div><div class="dialog-content">'+content+'</div>';
   if(!dialog.open)dialog.showModal();
@@ -60,7 +62,7 @@ function openEditor(med,cat){
     if(flags.length){location.hash='interactions';toast('Medication saved. Review the interaction warning'+(flags.length===1?'':'s')+'.')}
     else if(pairs.length){toast('Medication saved. This combination needs pharmacist review.');location.hash='interactions'}
     else toast('Medication saved.');
-    if(item.mode!=='list'){offerPhoneSetup=true;render()}
+    if(item.mode!=='list'&&!nativePlatform){offerPhoneSetup=true;render()}
     await scan();
   },m=>{
     openDialog('Remove medication?','<p>Remove <b>'+h(m.name)+'</b> from this list and cancel its in-page reminders? Remove any exported calendar events and phone alarms for this entry as well.</p><p>This removes the entry from Dosewell only. Follow your prescriber’s instructions for treatment.</p><div class="form-buttons"><button class="btn outline" id="keep-editing">Keep medication</button><button class="btn danger" id="confirm-remove">Remove entry</button></div>');
@@ -83,7 +85,7 @@ function openSupply(id){
 }
 function openSnooze(key){
   const row=doseAt(read(),key);if(!row)return;
-  openDialog('Snooze reminder','<p><b>'+h(medicationTitle(row.med))+'</b> · '+h(row.med.dose)+'</p><p>Choose when Dosewell should alert you again for the '+doseTimeLabel(row)+' dose. The prescribed time stays the same. Keep the page open for this reminder.</p><div class="snooze-options">'+[5,10,15,30,60].map(n=>'<button class="btn outline" data-snooze-minutes="'+n+'">'+n+' min</button>').join('')+'</div><p class="snooze-feedback" role="status"></p>');
+  openDialog('Snooze reminder','<p><b>'+h(medicationTitle(row.med))+'</b> · '+h(row.med.dose)+'</p><p>Choose when Dosewell should alert you again for the '+doseTimeLabel(row)+' dose. The prescribed time stays the same. '+(nativePlatform?'Keep Dosewell alarms enabled.':'Keep the page open for this reminder.')+'</p><div class="snooze-options">'+[5,10,15,30,60].map(n=>'<button class="btn outline" data-snooze-minutes="'+n+'">'+n+' min</button>').join('')+'</div><p class="snooze-feedback" role="status"></p>');
   dialog.querySelectorAll('[data-snooze-minutes]').forEach(b=>b.onclick=async()=>{
     try{await save(s=>snoozeDose(s,key,Number(b.dataset.snoozeMinutes)));dialog.close();toast('Reminder snoozed for '+b.dataset.snoozeMinutes+' minutes.')}
     catch(err){dialog.querySelector('.snooze-feedback').textContent=err.message}
@@ -136,7 +138,7 @@ async function present(event){
   }catch{toast('Device notifications could not be shown. The reminder is visible on this page.')}
 }
 async function scan(){
-  if(checking)return;
+  if(checking||nativePlatform)return;
   checking=true;
   try{
     const now=new Date(),day=dayKey(now);let changed=false;
@@ -223,7 +225,8 @@ document.addEventListener('click',async e=>{
         }else calendarOptions(read(),openDialog);
         break;
       case 'phone-alarms':phoneExport(read,openDialog,dialog);break;
-      case 'help':openDialog('Help & privacy','<h3>Use Dosewell from your home screen</h3><p>On iPhone, use Safari’s Share menu and choose Add to Home Screen. On Android, look for Install app or Add to Home screen in the browser menu.</p><h3>Your medication list</h3><p>Enter each medicine and dose from your current prescription, or use Take photo in Add medication to fill the label fields. Check the suggested text before saving. The photo is processed on this device and discarded when the form closes. Choose daily times, an hourly interval, selected days, or list only. In Today, record a dose after taking it, log a skipped dose, or snooze its reminder. History keeps your recorded entries. For a list only medicine, use Log a dose on the Medications page.</p><h3>Where your plan is saved</h3><p>Medication entries and dose history, and refill counts stay in this browser on this device. Anyone with access to this browser profile can view them. Clearing browser data removes the plan.</p><h3>Reminder delivery</h3><p>Keep the page open and your device awake for in-page alarms. Test the sound in Reminders. For reminders with the site closed, choose Clock alarms in Reminders for the Android assistant or iPhone Shortcuts setup. Calendar reminders creates a separate calendar file. Confirm the alerts on your device. Medication names may appear on the lock screen if you enable notifications.</p><h3>Interaction warnings</h3><p>The checker covers selected pairs. Ask a pharmacist to review your complete list, especially before adding a new medicine or changing a dose.</p>');break;
+      case 'enable-app-alarms':case 'test-app-alarm':case 'stop-app-alarms':nativeAction(d.action);break;
+      case 'help':if(nativePlatform){openDialog('Dosewell help','<p>Enter your medications and schedules, then enable Dosewell alarms in Reminders. Dosewell stores your plan on this device. Record doses in Today. Dismissing an alarm does not record a dose.</p><p>Names and doses may appear on the lock screen. Ask your pharmacist to review your full medication list for interactions.</p>');break}openDialog('Help & privacy','<h3>Use Dosewell from your home screen</h3><p>On iPhone, use Safari’s Share menu and choose Add to Home Screen. On Android, look for Install app or Add to Home screen in the browser menu.</p><h3>Your medication list</h3><p>Enter each medicine and dose from your current prescription, or use Take photo in Add medication to fill the label fields. Check the suggested text before saving. The photo is processed on this device and discarded when the form closes. Choose daily times, an hourly interval, selected days, or list only. In Today, record a dose after taking it, log a skipped dose, or snooze its reminder. History keeps your recorded entries. For a list only medicine, use Log a dose on the Medications page.</p><h3>Where your plan is saved</h3><p>Medication entries and dose history, and refill counts stay in this browser on this device. Anyone with access to this browser profile can view them. Clearing browser data removes the plan.</p><h3>Reminder delivery</h3><p>Keep the page open and your device awake for in-page alarms. Test the sound in Reminders. For reminders with the site closed, choose Clock alarms in Reminders for the Android assistant or iPhone Shortcuts setup. Calendar reminders creates a separate calendar file. Confirm the alerts on your device. Medication names may appear on the lock screen if you enable notifications.</p><h3>Interaction warnings</h3><p>The checker covers selected pairs. Ask a pharmacist to review your complete list, especially before adding a new medicine or changing a dose.</p>');break;
     }
   }catch(err){toast(err.message||'The change could not be saved.')}
 });
@@ -233,3 +236,17 @@ let currentMinute=new Date().getMinutes();
 setInterval(()=>{const m=new Date().getMinutes();if(m!==currentMinute){currentMinute=m;if(view==='overview'&&!dialog.open&&(document.activeElement===main||!main.contains(document.activeElement)))render()}},5000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){render();scan()}});
 
+
+if(nativePlatform){
+  document.querySelector('.app-download-link').hidden=true;
+  document.querySelector('.plan-move-link').hidden=true;
+  document.addEventListener('change',async event=>{
+    if(event.target.id!=='native-import')return;
+    try{await importNativeFile(event.target.files[0]);render();syncNative();toast('Plan imported. Check your alarms in Reminders.')}
+    catch(error){toast(error.message)}
+  });
+  window.refreshDosewellAlarms=syncNative;
+  window.addEventListener('pageshow',syncNative);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncNative()});
+  syncNative();
+}

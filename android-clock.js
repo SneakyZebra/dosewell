@@ -43,7 +43,7 @@ export function showAndroidClock(container,getState,{allowShare=true}={}){
     container.replaceChildren();
     if(!items.length){container.append(text('p','There are no future scheduled doses to set in Clock.'));return}
     const native=document.createElement('section');
-    native.append(text('h3','Send an alarm to Android Clock'));
+    const app=text('a','Get alarms from the Dosewell app');app.href='./mobile-apps.html';app.className='text-link';native.append(app,text('h3','Send an alarm to Android Clock'));
     const install=text('a','Download Dosewell Clock for Android');install.href='./dosewell-clock.apk';install.download='dosewell-clock.apk';install.className='btn outline';
     native.append(text('p','On your Android phone, open the download and confirm installation once. Return here and tap a dose or warning to send it to Clock.'),install);
     const connection=text('p','');connection.setAttribute('role','status');native.append(connection);
