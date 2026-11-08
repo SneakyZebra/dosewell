@@ -1,4 +1,4 @@
-const cacheName='dosewell-app-12';
+const cacheName='dosewell-app-13';
 const shell=['./','./index.html','./styles.css','./app.js','./iphone-setup.js','./native-alarms.js','./mobile-apps.html','./mobile-apps.js','./dose-log.js','./schedule.js',
   './store.js','./view.js','./icons.js','./rules.js','./form.js','./exports.js',
   './phone-alarms.js','./android-clock.js','./clock-bridge.js','./clock-install.html','./reminder-transfer.js','./receive.html','./receive.js','./label-reader.js','./scan.js','./icon.svg','./inter.woff2',

@@ -117,6 +117,6 @@ export function showIphoneSetup(main,getState){
     (installed?'<p>You opened Dosewell from its Home Screen icon.</p>':'<p>For one-tap access, open Dosewell in Safari. Tap <strong>Share → Add to Home Screen</strong>, turn on <strong>Open as Web App</strong> if shown, then tap <strong>Add</strong>.</p>')+
     '<p>Safari and the Home Screen icon can keep separate plans. If you are starting fresh, enter your medications where you plan to use Dosewell.</p>'+
     '<a class="text-link" href="./move.html">Transfer a saved plan '+icon('arrow',16)+'</a></section>'+
-    '<a class="btn outline iphone-today" href="#overview">Open my planner '+icon('arrow',16)+'</a></aside></div>';
+    '<a class="btn outline iphone-today" href="#overview">Open my planner '+icon('arrow',16)+'</a> <a class="text-link" href="#reminders">All reminder settings</a></aside></div>';
   mountAppleCalendar(main.querySelector('#apple-calendar'),getState,{remember:true,canEdit:true});
 }
