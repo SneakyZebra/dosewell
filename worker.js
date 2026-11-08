@@ -1,7 +1,7 @@
-const cacheName='dosewell-app-7';
+const cacheName='dosewell-app-8';
 const shell=['./','./index.html','./styles.css','./app.js','./dose-log.js','./schedule.js',
   './store.js','./view.js','./icons.js','./rules.js','./form.js','./exports.js',
-  './phone-alarms.js','./reminder-transfer.js','./receive.html','./receive.js','./label-reader.js','./scan.js','./icon.svg','./inter.woff2',
+  './phone-alarms.js','./android-clock.js','./reminder-transfer.js','./receive.html','./receive.js','./label-reader.js','./scan.js','./icon.svg','./inter.woff2',
   './move.html','./move.js','./plan-backup.js','./app.webmanifest','./app-192.png','./app-512.png'];
 const known=new Set(shell.map(path=>new URL(path,self.registration.scope).href));
 const ocrFiles=new Set(['tesseract.esm.min.js','worker.min.js','eng.traineddata.gz',

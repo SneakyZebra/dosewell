@@ -1,3 +1,4 @@
+import {showAndroidClock} from './android-clock.js';
 import {transferLink,transferChoice} from './reminder-transfer.js';
 import {h} from './view.js';
 import {icon} from './icons.js';
@@ -15,14 +16,14 @@ function download(name, type, text) {
 export function calendarOptions(state,openDialog){
   const cal=calendarFile(state);
   if(!cal.count){
-    openDialog('Set up phone reminders','<p>Add a medication with a future dose time to create a reminder file.</p><button class="btn primary" data-action="add-stroke">Add medication</button>');
+    openDialog('Calendar reminders','<p>Add a medication with a future dose time to create a reminder file.</p><button class="btn primary" data-action="add-stroke">Add medication</button>');
     return;
   }
-  openDialog('Set up phone reminders','<p>Dosewell prepares one calendar file with your recurring dose times and advance warnings. Open it on this phone or send it to another phone.</p>'+
+  openDialog('Calendar reminders','<p>The .ics file is for your calendar. Downloading or texting it does not add or update Android Clock alarms. To create Clock alarms, choose Android Clock setup.</p>'+
     '<div class="export-choices"><button class="btn primary" data-action="text-reminders">'+icon('message',18)+'Text to a phone</button><button class="btn outline" data-action="export">'+icon('calendar',18)+'Get calendar file (.ics)</button></div>'+
     '<p class="transfer-privacy">The file and reminder link include medication names, doses, and times. Anyone who receives them can read the schedule.</p><p id="calendar-feedback" role="status"></p>'+
     '<details class="export-guide"><summary>How to add the alerts</summary><p>In Messages, choose the phone number and tap Send. On the receiving phone, open the attachment or reminder link and confirm the calendar import. Check a dose alert and its advance warning.</p><p>Apple Mail can import an .ics attachment on iPhone. For Google Calendar, import the file on a computer into the calendar that syncs to your Android phone. Other calendar apps may open the file directly.</p><p>This file is a snapshot. Replace the old events when the schedule changes. Calendar alerts and Clock alarms are managed separately on your phone.</p></details>'+
-    '<button class="text-link" data-action="manual-transfer">Other ways to send</button>');
+    '<div class="export-choices"><button class="btn outline" data-action="android-clock">Android Clock setup</button><button class="text-link" data-action="manual-transfer">Other ways to send</button></div>');
 }
 
 function manualTransfer(state,openDialog,dialog,reason=''){
@@ -68,9 +69,9 @@ export async function textReminders(state,openDialog,dialog,manual=false){
   }
 }
 
-export function phoneExport(getState,openDialog,dialog) {
+export function phoneExport(getState,openDialog,dialog,requestedPlatform='') {
   const apple=/iPhone|iPad|iPod/i.test(navigator.userAgent)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1);
-  let platform=apple?'apple':/Android/i.test(navigator.userAgent)?'android':'';
+  let platform=requestedPlatform||(apple?'apple':/Android/i.test(navigator.userAgent)?'android':'');
   const render=()=>{
     const entries=phoneAlarms(getState());
     if(!entries.length){
@@ -78,20 +79,27 @@ export function phoneExport(getState,openDialog,dialog) {
       return;
     }
     const option=(key,text)=>'<button class="btn outline" data-platform="'+key+'" aria-pressed="'+(platform===key)+'">'+text+'</button>';
+    const tabs='<div class="platform-picker">'+option('android','Android')+option('apple','iPhone')+'</div>';
+    const bindTabs=()=>dialog.querySelectorAll('[data-platform]').forEach(b=>b.onclick=()=>{platform=b.dataset.platform;render();dialog.querySelector('[data-platform="'+platform+'"]').focus()});
+    if(platform==='android'){
+      openDialog('Android Clock setup',tabs+'<div id="android-clock-setup"></div>');
+      showAndroidClock(dialog.querySelector('#android-clock-setup'),getState);
+      bindTabs();return;
+    }
     const cards=entries.map((entry,i)=>{
       const can=clockCanSet(entry);
-      const name=platform==='apple'?'Send to Shortcuts':'Open in Clock';
+      const name='Send to Shortcuts';
       return '<article class="phone-entry"><div class="phone-time">'+h(alarmTimeLabel(entry))+'</div><div><b>'+h(entry.name)+' · '+h(entry.dose)+'</b><p>'+(entry.minutes?('Advance warning · dose at '+h(timeLabel(entry.doseTime))+(entry.doseDay&&entry.doseDay!==dayKey(entry.at)?' on '+h(readableDate(entry.doseDay)):'')):'Dose time')+'</p><p>Next '+h(readableDate(dayKey(entry.at)))+' · '+h(repeatText(entry))+'</p>'+(entry.until?'<p>Last alarm '+h(readableDate(entry.until))+'</p>':'')+'</div><div class="phone-actions">'+
         (platform&&can?'<button class="btn small primary" data-send="'+i+'">'+name+'</button>':'')+
         '<button class="btn small outline" data-copy="'+i+'">Copy details</button></div>'+
         (platform&&!can?'<small>This alarm starts on a later date. Use the calendar export or set it in Clock on the date shown.</small>':'')+'</article>';
     }).join('');
-    openDialog('Phone alarms','<p>Each entry is one alarm, including advance warnings. Choose the phone you use.</p><div class="platform-picker">'+option('android','Android')+option('apple','iPhone')+'</div>'+
-      (platform==='apple'?shortcutHelp:platform==='android'?'<p><b>Open in Clock</b> requests an alarm on supported Android devices. If Clock does not open, use the time and label below to create it in your Clock app.</p>':'')+
+    openDialog('Phone alarms','<p>Each entry is one alarm, including advance warnings. Choose the phone you use.</p>'+tabs+
+      (platform==='apple'?shortcutHelp:'')+
       '<p class="export-note">Check the time and label in Clock. '+(entries.some(e=>e.oneTime)?'Hourly schedules show one-time alarms for the next 24 hours, or the first upcoming alert if later. Leave Repeat off for these alarms. Use Calendar alerts for the full repeating schedule.':'Set repeat days there and remove alarms when a course ends or a dose changes.')+'</p><div class="phone-entries">'+cards+'</div><button class="btn outline" id="download-alarms">'+icon('download',17)+'Download alarm list (.txt)</button><p class="export-feedback" role="status"></p>');
     const feedback=dialog.querySelector('.export-feedback');
-    dialog.querySelectorAll('[data-platform]').forEach(b=>b.onclick=()=>{platform=b.dataset.platform;render();dialog.querySelector('[data-platform="'+platform+'"]').focus()});
-    dialog.querySelector('#download-alarms').onclick=()=>{download('Dosewell-phone-alarms.txt','text/plain;charset=utf-8',alarmFile(phoneAlarms(getState())));feedback.textContent='Alarm list downloaded. Use it to set or check your Clock alarms.'};
+    bindTabs();
+    dialog.querySelector('#download-alarms').onclick=()=>{download('Dosewell-phone-alarms.txt','text/plain;charset=utf-8',alarmFile(phoneAlarms(getState())));feedback.textContent='Reference list downloaded. A text file cannot install Clock alarms.'};
     dialog.querySelectorAll('[data-copy]').forEach(b=>b.onclick=async()=>{
       const txt=alarmText(entries[Number(b.dataset.copy)]);
       try{await navigator.clipboard.writeText(txt);b.textContent='Copied'}

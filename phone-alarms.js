@@ -3,7 +3,7 @@ import {nextInterval,clockTime,medicationTitle, advanceMinutes, dayKey, dayNames
 function nextAlert(state, med, time, minutes, now) {
   let from = new Date(now.getTime() + minutes * 60000);
   let dose = firstNext(med, time, from);
-  while (dose && (state.taken[med.id + '|' + dose.day + '|' + time] || state.history?.[med.id + '|' + dose.day + '|' + time]?.status==='skipped')) {
+  while (dose && (state.taken?.[med.id + '|' + dose.day + '|' + time] || state.history?.[med.id + '|' + dose.day + '|' + time]?.status==='skipped')) {
     from = new Date(dose.when.getTime() + 1);
     dose = firstNext(med, time, from);
   }
@@ -35,7 +35,7 @@ function intervalAlerts(state,med,minutes,now){
     const at=new Date(next.when.getTime()-margin);
     const outsideWindow=at.getTime()>=limit;
     if(outsideWindow&&entries.length)break;
-    if(!state.taken[next.key]&&state.history?.[next.key]?.status!=='skipped'){
+    if(!state.taken?.[next.key]&&state.history?.[next.key]?.status!=='skipped'){
       entries.push({
         key:next.key+'|'+minutes,at,minutes,oneTime:true,
         label:(minutes?'Upcoming in '+minutes+' min: ':'Dose: ')+medicationTitle(med)+' · '+med.dose,
@@ -81,12 +81,7 @@ export function phoneHandoff(entry, platform, now = new Date()) {
     const input = entry.time + '\n' + entry.label;
     return 'shortcuts://run-shortcut?name=Dosewell%20Alarm&input=text&text=' + encodeURIComponent(input);
   }
-  if (platform === 'android') {
-    return 'intent:#Intent;action=android.intent.action.SET_ALARM;i.android.intent.extra.alarm.HOUR=' +
-      entry.at.getHours() + ';i.android.intent.extra.alarm.MINUTES=' + entry.at.getMinutes() +
-      ';S.android.intent.extra.alarm.MESSAGE=' + encodeURIComponent(entry.label) +
-      ';B.android.intent.extra.alarm.SKIP_UI=false;end';
-  }
+
   return null;
 }
 

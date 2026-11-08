@@ -33,6 +33,7 @@ function render(){
 function route(){
   if(location.hash==='#overview'){selected=dayKey(new Date());part=null}
   render();window.scrollTo({top:0});main.focus({preventScroll:true});
+  if(location.hash==='#reminders/android-clock')phoneExport(read,openDialog,dialog,'android');
   if(location.hash==='#overview/schedule'){selected=dayKey(new Date());render();document.querySelector('.schedule')?.scrollIntoView({block:'start'})}
 }
 window.addEventListener('hashchange',route);
@@ -209,6 +210,8 @@ document.addEventListener('click',async e=>{
       case 'notify':await notifications();break;
       case 'test':audioReady();await present({id:'sample',test:true,title:'Test reminder',body:'This is a sample alarm. No medication dose is due from this test.'});break;
       case 'dismiss-setup':offerPhoneSetup=false;render();break;
+      case 'phone-setup':offerPhoneSetup=false;document.querySelector('#setup-prompt').hidden=true;if(/Android/i.test(navigator.userAgent))phoneExport(read,openDialog,dialog,'android');else calendarOptions(read(),openDialog);break;
+      case 'android-clock':phoneExport(read,openDialog,dialog,'android');break;
       case 'calendar-options':offerPhoneSetup=false;document.querySelector('#setup-prompt').hidden=true;calendarOptions(read(),openDialog);break;
       case 'text-reminders':await textReminders(read(),openDialog,dialog);break;
       case 'manual-transfer':await textReminders(read(),openDialog,dialog,true);break;
@@ -220,12 +223,12 @@ document.addEventListener('click',async e=>{
         }else calendarOptions(read(),openDialog);
         break;
       case 'phone-alarms':phoneExport(read,openDialog,dialog);break;
-      case 'help':openDialog('Help & privacy','<h3>Use Dosewell from your home screen</h3><p>On iPhone, use Safari’s Share menu and choose Add to Home Screen. On Android, look for Install app or Add to Home screen in the browser menu.</p><h3>Your medication list</h3><p>Enter each medicine and dose from your current prescription, or use Take photo in Add medication to fill the label fields. Check the suggested text before saving. The photo is processed on this device and discarded when the form closes. Choose daily times, an hourly interval, selected days, or list only. In Today, record a dose after taking it, log a skipped dose, or snooze its reminder. History keeps your recorded entries. For a list only medicine, use Log a dose on the Medications page.</p><h3>Where your plan is saved</h3><p>Medication entries and dose history, and refill counts stay in this browser on this device. Anyone with access to this browser profile can view them. Clearing browser data removes the plan.</p><h3>Reminder delivery</h3><p>Keep the page open and your device awake for in-page alarms. Test the sound in Reminders. For reminders with the site closed, use Set up phone reminders in Reminders to download or text your calendar file. For individual alarms, choose Clock alarms. Confirm the alerts on your device. Medication names may appear on the lock screen if you enable notifications.</p><h3>Interaction warnings</h3><p>The checker covers selected pairs. Ask a pharmacist to review your complete list, especially before adding a new medicine or changing a dose.</p>');break;
+      case 'help':openDialog('Help & privacy','<h3>Use Dosewell from your home screen</h3><p>On iPhone, use Safari’s Share menu and choose Add to Home Screen. On Android, look for Install app or Add to Home screen in the browser menu.</p><h3>Your medication list</h3><p>Enter each medicine and dose from your current prescription, or use Take photo in Add medication to fill the label fields. Check the suggested text before saving. The photo is processed on this device and discarded when the form closes. Choose daily times, an hourly interval, selected days, or list only. In Today, record a dose after taking it, log a skipped dose, or snooze its reminder. History keeps your recorded entries. For a list only medicine, use Log a dose on the Medications page.</p><h3>Where your plan is saved</h3><p>Medication entries and dose history, and refill counts stay in this browser on this device. Anyone with access to this browser profile can view them. Clearing browser data removes the plan.</p><h3>Reminder delivery</h3><p>Keep the page open and your device awake for in-page alarms. Test the sound in Reminders. For reminders with the site closed, choose Clock alarms in Reminders for the Android assistant or iPhone Shortcuts setup. Calendar reminders creates a separate calendar file. Confirm the alerts on your device. Medication names may appear on the lock screen if you enable notifications.</p><h3>Interaction warnings</h3><p>The checker covers selected pairs. Ask a pharmacist to review your complete list, especially before adding a new medicine or changing a dose.</p>');break;
     }
   }catch(err){toast(err.message||'The change could not be saved.')}
 });
 dialog.addEventListener('click',e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close()}});
-render();scan();setInterval(scan,3000);
+render();if(location.hash==='#reminders/android-clock')phoneExport(read,openDialog,dialog,'android');scan();setInterval(scan,3000);
 let currentMinute=new Date().getMinutes();
 setInterval(()=>{const m=new Date().getMinutes();if(m!==currentMinute){currentMinute=m;if(view==='overview'&&!dialog.open&&(document.activeElement===main||!main.contains(document.activeElement)))render()}},5000);
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){render();scan()}});
