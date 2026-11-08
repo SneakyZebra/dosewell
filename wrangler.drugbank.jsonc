@@ -1,0 +1,11 @@
+{
+  "name": "dosewell-drugbank",
+  "main": "drugbank-gateway.mjs",
+  "compatibility_date": "2026-01-01",
+  "observability": { "enabled": false },
+  "ratelimits": [{
+    "name": "CHECK_LIMIT",
+    "namespace_id": "1010",
+    "simple": { "limit": 60, "period": 60 }
+  }]
+}

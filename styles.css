@@ -185,3 +185,10 @@ footer .plan-move-link{color:#446452;text-decoration:underline;margin-left:5px}
 .ic-unknown{padding:7px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.ic-coverage summary{font-weight:650;min-height:40px;cursor:pointer}
 .ic-empty{padding:12px 0}.ic-layout button:focus-visible,.ic-layout input:focus-visible{outline:3px solid #317c66;outline-offset:2px}
 @media(max-width:760px){.ic-layout{grid-template-columns:minmax(0,1fr);gap:14px}.ic-list,.ic-results{padding:18px}.ic-list-actions{gap:8px 14px}}
+
+.db-panel{margin-top:18px;padding:24px}.db-panel h2{margin:0 0 8px}.db-panel p{max-width:76ch}
+.db-panel label{display:block;font-weight:650;margin:8px 0}.db-panel li{margin:12px 0}
+.db-matches{padding-left:24px}.db-search{display:flex;gap:8px;flex-wrap:wrap}.db-search input{flex:1;min-width:10ch}
+.db-panel input,.db-panel select{max-width:100%;padding:10px;border:1px solid #899c94;border-radius:7px;font:inherit;font-size:16px}
+.db-panel button,.db-panel select{min-height:44px}.db-panel [role=status]:empty{display:none}.db-findings{list-style:none;padding:0}
+.db-findings strong{text-transform:capitalize}.db-panel :focus-visible{outline:3px solid #317c66;outline-offset:2px}

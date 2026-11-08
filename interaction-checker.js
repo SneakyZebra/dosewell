@@ -1,3 +1,4 @@
+import {attachDrugBank} from './drugbank-checker.js';
 import {catalogSize,compare,identify,labelNotes,pairRuleCount,searchProducts,warningLabel} from './rules.js';
 import {h} from './view.js';
 import {icon} from './icons.js';
@@ -67,6 +68,7 @@ export function showInteractionChecker(main,state){
     '<p>Dosewell checks '+pairRuleCount+' selected oral drug pairs. Other interactions may be missing, even for recognized medicines. Ask your pharmacist before changing a prescribed dose.</p>'+
     '<div id="ic-report"></div><details class="ic-coverage"><summary>Coverage and sources</summary><p>Search '+catalogSize.toLocaleString('en-US')+' product names and forms from the November 2026 NLM RxTerms catalog. Dosewell screens '+pairRuleCount+' selected oral ingredient pairs using DailyMed labels and MedlinePlus guidance. An ingredient match identifies a medicine and does not establish safety.</p><p>Food and condition notes cover selected label precautions. They do not use your medical history. Dose, route, supplements and other health factors may change the risk.</p></details></section></div>';
   const el=id=>main.querySelector('#'+id);
+  const updateDrugBank=attachDrugBank(main);
   const input=el('ic-query'),matches=el('ic-matches'),feedback=el('ic-feedback'),report=el('ic-report');
   function drawReport(){
     const pairCount=rows.length*(rows.length-1)/2;
@@ -97,7 +99,7 @@ export function showInteractionChecker(main,state){
     list.innerHTML=rows.map((m,i)=>'<li><div><strong>'+h(m.name)+'</strong><small>'+h(profileText(m.name))+'</small></div><button class="ic-remove" type="button" data-ic-remove="'+i+'" aria-label="Remove '+h(m.name)+' from this check">'+icon('close',18)+'</button></li>').join('');
     el('ic-check').disabled=rows.length===0;el('ic-clear').hidden=rows.length===0;
     el('ic-restore').hidden=!state.meds.length||(!current.extra.length&&!current.hidden.length);
-    findings=results(rows);unknownLimit=12;drawReport();
+    findings=results(rows);unknownLimit=12;drawReport();updateDrugBank(rows);
   }
   function add(name){
     const value=name.trim();
