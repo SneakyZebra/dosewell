@@ -112,7 +112,7 @@ export function mountAppleCalendar(container,getState,{remember=false,canEdit=fa
 
 export function showIphoneSetup(main,getState){
   const installed=fromHomeScreen();
-  main.innerHTML='<div class="page-head"><div><h1>Use Dosewell on iPhone</h1><p>Manage your medications in Safari. No account or App Store download is needed.</p></div></div>'+
+  main.innerHTML='<div class="page-head"><div><h1>Use Dosewell on iPhone</h1><p>Manage your medications in Safari. No account or App Store download is needed.</p><a class="text-link" href="./iphone.html">Open or share the iPhone guide</a></div></div>'+
     '<div class="iphone-layout"><section class="panel side-note iphone-card" id="apple-calendar"></section>'+
     '<aside><section class="panel side-note iphone-card"><h2>'+ (installed?'On your Home Screen':'Add Dosewell to your Home Screen')+'</h2>'+
     (installed?'<p>You opened Dosewell from its Home Screen icon.</p>':'<p>For one-tap access, open Dosewell in Safari. Tap <strong>Share → Add to Home Screen</strong>, turn on <strong>Open as Web App</strong> if shown, then tap <strong>Add</strong>.</p>')+

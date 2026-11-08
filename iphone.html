@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#176557">
+  <meta name="description" content="Open DoseWell on your iPhone, add your medications, and set up reminders for your Lock Screen.">
+  <meta property="og:title" content="DoseWell for iPhone">
+  <meta property="og:description" content="Your medication planner and a quick guide to setting up reminders. Open in Safari to get started.">
+  <meta property="og:image" content="https://sneakyzebra.github.io/dosewell/app-512.png">
+  <meta property="og:url" content="https://sneakyzebra.github.io/dosewell/iphone.html">
+  <link rel="canonical" href="https://sneakyzebra.github.io/dosewell/iphone.html">
+  <link rel="manifest" href="./app.webmanifest">
+  <link rel="apple-touch-icon" href="./app-192.png">
+  <link rel="icon" href="./icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="./styles.css">
+  <title>DoseWell for iPhone</title>
+  <style>
+    .iphone-guide{max-width:740px;margin:0 auto;padding:clamp(24px,5vw,52px) clamp(16px,4vw,32px) 48px;font-size:16px}
+    .iphone-guide h1{margin-bottom:12px}.iphone-guide h2{font-size:21px;margin-bottom:6px}
+    .guide-actions{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 8px}
+    .guide-actions .btn,.guide-step a.btn{min-height:44px}
+    .guide-steps{list-style:none;counter-reset:guide;margin:24px 0 16px;padding:0}
+    .guide-step{counter-increment:guide;position:relative;padding:19px 17px 19px 57px;border-bottom:1px solid var(--line)}
+    .guide-step:before{content:counter(guide);position:absolute;left:18px;top:19px;width:25px;height:25px;border-radius:50%;background:#e1efe7;color:#24533f;font-weight:650;text-align:center}
+    .guide-step:last-child{border:0}.guide-step p+p,.guide-step a.btn{margin-top:10px}
+    .iphone-guide details{margin-top:10px}.iphone-guide summary{cursor:pointer;padding:12px 0;font-weight:620}
+    .iphone-guide details p{margin:0 0 12px}.guide-share-fallback{width:100%;font:inherit;padding:8px}
+    .guide-share-status:empty{display:none}
+  </style>
+</head>
+<body>
+  <a class="skip" href="#guide">Skip to setup instructions</a>
+  <header class="mast"><div class="header-inner">
+    <a class="brand" href="./"><img src="./icon.svg" alt="" width="38" height="38"><span class="brand-type"><span>Dosewell</span><small>By Williams Industries</small></span></a>
+  </div></header>
+  <main class="iphone-guide" id="guide">
+    <h1>DoseWell for iPhone</h1>
+    <p>Keep track of what you took and when your next dose is scheduled. Open this link in Safari to get started. No account or App Store download is required.</p>
+    <div class="guide-actions">
+      <a class="btn primary" href="./">Open DoseWell</a>
+      <button class="btn outline" id="share-guide" hidden type="button">Share iPhone guide</button>
+    </div>
+    <p id="share-status" class="guide-share-status" role="status"></p>
+    <input id="share-url" class="guide-share-fallback" aria-label="Public setup link to copy" readonly hidden>
+
+    <ol role="list" class="panel guide-steps">
+      <li class="guide-step">
+        <h2>Add DoseWell to your Home Screen</h2>
+        <p>Tap <strong>Open DoseWell</strong> above. In Safari, tap <strong>Share</strong> (the square with an upward arrow). Depending on your layout, you may need to open the page menu first. Select <strong>Add to Home Screen</strong>, turn on <strong>Open as Web App</strong> if shown, then tap <strong>Add</strong>.</p>
+        <p>Open the new DoseWell icon before entering medications. Use that icon each time so you return to the same saved plan. You can also use DoseWell entirely in Safari.</p>
+      </li>
+      <li class="guide-step">
+        <h2>Add your first medication</h2>
+        <p>On <strong>Today</strong>, tap <strong>Add medication</strong>. Type the details from your current label or scan the label and check what was captured. Enter your dose, choose a schedule, and tap <strong>Save medication</strong>. Choose <strong>As needed</strong> for a medicine you take only when needed.</p>
+      </li>
+      <li class="guide-step">
+        <h2>Set up and test Lock Screen reminders</h2>
+        <p>In the planner, open <strong>Reminders</strong>. Under <strong>Apple Calendar reminders</strong>, save or share your calendar file, then import its events into a personal calendar. A separate calendar called DoseWell makes future updates easier. The file contains medication names and doses.</p>
+        <p>In iPhone <strong>Settings → Notifications → Calendar</strong>, allow notifications and select <strong>Lock Screen</strong>. Back in DoseWell, choose <strong>Try a test alert</strong>, import the sample event, then lock your phone. Expect one alert in about eight minutes and another in about ten minutes.</p>
+        <a class="btn outline" href="./#reminders/iphone">Open reminder setup</a>
+      </li>
+      <li class="guide-step">
+        <h2>Record a dose and keep alerts current</h2>
+        <p>After you take a scheduled dose, open <strong>Today</strong>, tap <strong>Mark taken</strong>, and confirm the time. For an as needed medication, open <strong>Medications → Log a dose</strong>. Your entries appear in <strong>History</strong>.</p>
+        <p>If a schedule changes or a medicine is stopped, remove its outdated events in Apple Calendar. Import the updated schedule for any reminders you still need. Logging or snoozing a dose in DoseWell leaves imported Calendar alerts in place.</p>
+      </li>
+    </ol>
+    <details>
+      <summary>I cannot find a setup option or hear the test alert</summary>
+      <p>If Safari does not show <strong>Add to Home Screen</strong>, scroll to the bottom of its Share menu and tap <strong>Edit Actions</strong>. <a class="text-link" href="https://support.apple.com/guide/iphone/open-as-web-app-iphea86e5236/ios">Apple’s Home Screen instructions</a></p>
+      <p>If Calendar is missing when you open the file, attach the saved <strong>.ics</strong> file to an email to yourself and open the attachment in Apple Mail. After importing, check that the event and its alerts appear in Calendar. If the alert is quiet, check Calendar sounds, Silent mode, and Focus settings, then repeat the test.</p>
+    </details>
+    <details>
+      <summary>What does someone receive when I share this guide?</summary>
+      <p>The guide link opens these instructions. Each person enters and keeps their own medication plan on their device. To save a backup of your own plan, open <strong>Dosewell apps → Download my plan</strong> in the web planner where your medications are saved.</p>
+    </details>
+  </main>
+  <script>
+    const shareButton = document.getElementById('share-guide');
+    const status = document.getElementById('share-status');
+    const fallback = document.getElementById('share-url');
+    const publicGuide = document.querySelector('link[rel="canonical"]').href;
+    shareButton.hidden = false;
+    shareButton.textContent = navigator.share ? 'Share iPhone guide' : 'Copy guide link';
+    shareButton.addEventListener('click', async () => {
+      status.textContent = '';
+      fallback.hidden = true;
+      if (navigator.share) {
+        try {
+          await navigator.share({title: 'DoseWell for iPhone', url: publicGuide});
+          return;
+        } catch (error) {
+          if (error.name === 'AbortError') return;
+        }
+      }
+      try {
+        await navigator.clipboard.writeText(publicGuide);
+        status.textContent = 'Guide link copied. Paste it into a message.';
+      } catch {
+        fallback.hidden = false;
+        fallback.value = publicGuide;
+        fallback.focus();
+        fallback.select();
+        status.textContent = 'Copy the selected link and paste it into a message.';
+      }
+    });
+  </script>
+</body>
+</html>
