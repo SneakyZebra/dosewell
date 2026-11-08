@@ -3,18 +3,20 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['dosewell-android.apk', 'dosewell-android-source.zip']
+    paths: ['dosewell-android.apk', 'dosewell-android-source.zip', '.github/workflows/check-android.yml']
 permissions:
   contents: read
 jobs:
   android:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Start Android 15 test device
         run: |
           set -euo pipefail
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "system-images;android-35;google_apis;x86_64" "emulator" >/dev/null
           sudo chmod a+rw /dev/kvm
           echo no | avdmanager create avd -n DosewellTest -k 'system-images;android-35;google_apis;x86_64' --force
