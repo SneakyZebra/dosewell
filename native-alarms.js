@@ -17,7 +17,25 @@ export function nativeStatus(message,attention){
   if(banner){banner.hidden=!attention;banner.querySelector('span').textContent=lastStatus}
 }
 window.onDosewellAlarmStatus=nativeStatus;
-export function paintNative(){const p=document.getElementById('native-status');if(p)p.textContent=lastStatus}
+let soundDescription='Dose and advance alarms use the Dosewell chime and vibration.';
+let usingOlderSound=false;
+window.onDosewellSoundStatus=(description,legacy)=>{
+  soundDescription=description;usingOlderSound=legacy;
+  const note=document.getElementById('native-sound-status');if(note)note.textContent=description;
+  const use=document.getElementById('use-dosewell-chime');if(use)use.hidden=!legacy;
+};
+export function paintNative(){
+  const p=document.getElementById('native-status');if(p)p.textContent=lastStatus;
+  if(nativePlatform!=='Android'||!p)return;
+  const section=document.createElement('section');section.setAttribute('aria-label','Alarm sound');
+  const title=document.createElement('h3');title.textContent='Alarm sound';
+  const note=document.createElement('p');note.id='native-sound-status';note.textContent=soundDescription;
+  const choose=document.createElement('button');choose.type='button';choose.className='btn small outline';choose.id='use-dosewell-chime';
+  choose.textContent='Use gentle chime and vibration';choose.hidden=!usingOlderSound;choose.onclick=()=>command('gentle');
+  const settings=document.createElement('button');settings.type='button';settings.className='btn small outline';
+  settings.textContent='Android sound settings';settings.onclick=()=>command('channel-settings');
+  section.append(title,note,choose,settings);p.parentElement.append(section);
+}
 
 function nextTime(rule,after,skip){
   const lead=rule.lead*60000;
