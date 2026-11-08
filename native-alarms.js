@@ -35,6 +35,21 @@ export function paintNative(){
   const settings=document.createElement('button');settings.type='button';settings.className='btn small outline';
   settings.textContent='Android sound settings';settings.onclick=()=>command('channel-settings');
   section.append(title,note,choose,settings);p.parentElement.append(section);
+    const transfer=document.createElement("section");
+    const transferTitle=document.createElement("h3");
+    transferTitle.textContent="Your saved plan";
+    const transferNote=document.createElement("p");
+    transfer.append(transferTitle,transferNote);
+    if(hasPlan(read())){
+      transferNote.textContent="A plan file includes medication names, doses, reminder times and dose history. Save it somewhere private.";
+      const save=document.createElement("button");
+      save.type="button";save.className="btn small outline";save.textContent="Save a private plan file";
+      save.onclick=()=>command("save-plan",{json:JSON.stringify({format:"dosewell-plan-backup-v1",plan:read()})});
+      transfer.append(save);
+    }else{
+      transferNote.textContent="Moving from Dosewell? Import a saved Dosewell plan file above, or add each medication from your existing list. Check dose times and advance warnings before turning off reminders in the older app.";
+    }
+    p.parentElement.append(transfer);
 }
 
 function nextTime(rule,after,skip){

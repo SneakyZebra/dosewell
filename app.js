@@ -1,3 +1,4 @@
+import {showMedicationInfo} from './medication-info.js';
 import {showInteractionChecker,includeSavedInCheck} from './interaction-checker.js';
 import {onAppleMobile,showIphoneSetup} from './iphone-setup.js';
 import {nativePlatform,nativeAction,paintNative,syncNative,importNativeFile} from './native-alarms.js';
@@ -194,6 +195,7 @@ document.addEventListener('click',async e=>{
   if(b.classList.contains('skip')){e.preventDefault();main.focus();main.scrollIntoView({block:'start'});return}
   const d=b.dataset;
   try{
+    if(d.medInfo){showMedicationInfo(d.medInfo,openDialog,dialog);return}
     if(d.date){selected=d.date;part=null;render();document.querySelector('[data-date="'+selected+'"]')?.focus({preventScroll:true});return}
     if(d.edit){const m=state.meds.find(v=>v.id===d.edit);if(m)openEditor(m,m.category);return}
     if(d.part!==undefined){part=part===Number(d.part)?null:Number(d.part);render();main.querySelector('[data-part="'+d.part+'"]')?.focus({preventScroll:true});return}

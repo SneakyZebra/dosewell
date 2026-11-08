@@ -197,3 +197,7 @@ footer .plan-move-link{color:#446452;text-decoration:underline;margin-left:5px}
 
 .ic-suggestions button small{display:block;font-weight:400;color:var(--muted)}
 #name-feedback:empty{display:none}
+
+.med-info-name{display:inline-block;max-width:100%;min-height:28px;padding:2px 0;border:0;background:transparent;color:inherit;font:inherit;font-weight:inherit;text-align:start;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:.2em;overflow-wrap:anywhere;cursor:pointer}
+.med-info-name:hover{text-decoration-thickness:2px}.med-info-name:focus-visible,.med-guide a:focus-visible{outline:3px solid currentColor;outline-offset:3px;border-radius:2px}
+.med-guide h3{margin:0 0 .6rem;overflow-wrap:anywhere}.med-guide p{line-height:1.6;margin:.75em 0}.med-guide .text-link{display:inline-block;padding:5px 0;text-decoration:underline;text-underline-offset:.15em}.med-guide .guide-credit{margin-top:1.1rem;color:var(--muted);font-size:.9rem}.med-guide [role=status]:empty{display:none}
