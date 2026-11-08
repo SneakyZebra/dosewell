@@ -4,6 +4,9 @@ on:
   push:
     branches: [main]
     paths: ['dosewell-android.apk', 'dosewell-android-source.zip', '.github/workflows/check-android.yml']
+concurrency:
+  group: dosewell-android-device
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -17,12 +20,25 @@ jobs:
           set -euo pipefail
           export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "system-images;android-35;google_apis;x86_64" "emulator" >/dev/null
+          # This disposable SDK runner only needs the Java platform and one AVD.
+          if [ "$(df -Pk "$RUNNER_TEMP" | tail -1 | awk '{print $4}')" -lt 15000000 ]; then sudo rm -rf "$ANDROID_HOME/ndk"; fi
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "system-images;android-35;default;x86_64" "emulator" >/dev/null
           sudo chmod a+rw /dev/kvm
-          echo no | avdmanager create avd -n DosewellTest -k 'system-images;android-35;google_apis;x86_64' --force
-          "$ANDROID_HOME/emulator/emulator" @DosewellTest -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
-          adb wait-for-device
-          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 2; done
+          echo no | avdmanager create avd -n DosewellTest -k 'system-images;android-35;default;x86_64' --force
+          config="$HOME/.android/avd/DosewellTest.avd/config.ini"
+          sed -i '/^disk.dataPartition.size=/d' "$config"
+          echo 'disk.dataPartition.size=2048M' >> "$config"
+          df -h "$RUNNER_TEMP"
+          "$ANDROID_HOME/emulator/emulator" @DosewellTest -accel on -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect -memory 2048 -cores 2 -skin 480x800 > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          emulator_pid=$!
+          for attempt in $(seq 1 75); do
+            if ! kill -0 "$emulator_pid" 2>/dev/null; then tail -80 "$RUNNER_TEMP/emulator.log"; exit 1; fi
+            if [ "$(timeout 4 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)" = 1 ]; then exit 0; fi
+            sleep 3
+          done
+          tail -80 "$RUNNER_TEMP/emulator.log"
+          timeout 8 adb logcat -b crash -d -t 30 || true
+          exit 1
       - name: Verify app-owned dose and advance alarms
         run: |
           unzip -q dosewell-android-source.zip -d source
