@@ -1,5 +1,7 @@
 import {dayKey,dosesFor,localDay,medicationTitle,timeLabel,doseTimeLabel} from './schedule.js';
 
+import {planForDay} from './plan-changes.js';
+
 export function prepareLog(state) {
   state.snoozes ||= {};
   state.supplies ||= {};
@@ -16,7 +18,7 @@ export function doseAt(state,key) {
   const [medId,kind,time]=key.split('|');
   const day=kind==='interval'?dayKey(new Date(Number(time))):kind;
   if(kind==='interval'){
-    const med=state.meds.find(m=>m.id===medId&&m.mode==='interval');
+    const med=state.meds.find(m=>m.id===medId);
     return med?dosesFor([med],day).find(row=>row.key===key)||null:null;
   }
   if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||!/^\d{2}:\d{2}$/.test(time))return null;
@@ -32,24 +34,28 @@ function debitSupply(state,record){
   supply.remaining--;
   record.debited=supply.revision;
 }
-export function logDose(state,key,status,now=new Date()) {
+export function logDose(state,key,status,now=new Date(),details={}) {
   prepareLog(state);
   if(!['taken','skipped'].includes(status))throw Error('Choose a dose status.');
   if(recordedStatus(state,key))throw Error('This dose is already recorded. Undo the entry to change it.');
   const dose=doseAt(state,key);
   if(!dose||dose.when>now)throw Error('This scheduled dose is unavailable to record.');
   const {med,day,time}=dose,record={medId:med.id,day,time,status,name:medicationTitle(med),dose:med.dose,recordedAt:now.getTime()};
+  if(status==='taken')record.takenAt=actualTime(details.takenAt,now);
+  if(details.by)record.by=String(details.by).trim().slice(0,60);
   if(med.mode==='interval')record.scheduledLabel=doseTimeLabel(dose);
   if(status==='taken'){state.taken[key]=record.recordedAt;debitSupply(state,record)}
   state.history[key]=record;
   delete state.snoozes[key];
 }
-export function logAsNeeded(state,medId,key,now=new Date()){
+export function logAsNeeded(state,medId,key,now=new Date(),details={}){
   prepareLog(state);
   if(state.history[key])return;
-  const med=state.meds.find(m=>m.id===medId&&m.mode==='list');
-  if(!med)throw Error('Reopen the medication list to check this entry.');
-  const record={medId,day:dayKey(now),time:'',status:'taken',name:medicationTitle(med),dose:med.dose,recordedAt:now.getTime(),unscheduled:true};
+  const takenAt=actualTime(details.takenAt,now);
+  const raw=state.meds.find(m=>m.id===medId);
+  const med=raw && planForDay(raw,dayKey(new Date(takenAt)),new Date(takenAt).toTimeString().slice(0,5));
+  if(!med||med.mode!=='list'||med.listOnly)throw Error('Reopen the medication list to check this entry.');
+  const record={medId,day:dayKey(new Date(takenAt)),takenAt,by:String(details.by||'').trim().slice(0,60),time:'',status:'taken',name:medicationTitle(med),dose:med.dose,recordedAt:now.getTime(),unscheduled:true};
   debitSupply(state,record);
   state.history[key]=record;
 }
@@ -100,4 +106,18 @@ export function alignDoseKeys(state,oldMed,newMed){
     state.history[row.key]=record;delete state.history[key];
     if(state.taken[key]){state.taken[row.key]=state.taken[key];delete state.taken[key]}
   }
+}
+
+function actualTime(value,now){
+  const stamp=value??now.getTime();
+  if(!Number.isSafeInteger(stamp)||stamp<0||stamp>now.getTime())throw Error('Choose a time in the past or the current time.');
+  return stamp;
+}
+export function lastTaken(state,id){
+  return Object.values(state.history||{}).filter(r=>r.status==='taken'&&(!id||r.medId===id))
+    .sort((a,b)=>(b.takenAt??b.recordedAt)-(a.takenAt??a.recordedAt))[0];
+}
+export function takenLabel(record){
+  const when=new Date(record.takenAt??record.recordedAt).toLocaleString(undefined,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  return (record.takenAt?'Taken ':'Logged as taken ')+when+(record.by?' by '+record.by:'');
 }

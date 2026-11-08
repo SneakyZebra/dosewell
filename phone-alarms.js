@@ -1,3 +1,4 @@
+import {scheduledPlans} from './plan-changes.js';
 import {nextInterval,clockTime,medicationTitle, advanceMinutes, dayKey, dayNames, firstNext, localDay, pad, shiftDay, timeLabel} from './schedule.js';
 
 function nextAlert(state, med, time, minutes, now) {
@@ -50,7 +51,7 @@ function intervalAlerts(state,med,minutes,now){
 
 export function phoneAlarms(state, now = new Date()) {
   const alarms = [];
-  for (const med of state.meds) {
+  for (const med of scheduledPlans(state.meds)) {
     if (med.mode === 'list') continue;
     const warning = advanceMinutes(med, state.settings);
     if(med.mode==='interval'){

@@ -8,6 +8,16 @@ const day=v=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v)&&new Date(v+'T12
 const clock=v=>typeof v==='string'&&/^([01]\d|2[0-3]):[0-5]\d$/.test(v);
 const objOf=(v,test)=>plain(v)&&Object.entries(v).every(([k,x])=>k.length>0&&k.length<250&&!(k in Object.prototype)&&test(x,k));
 function validMedication(m){
+  if(!plain(m)||m.effectiveFrom!==undefined&&!day(m.effectiveFrom))return false;
+  if(m.effectiveTime!==undefined&&m.effectiveTime!==''&&!clock(m.effectiveTime))return false;
+  if(['purpose','visitNote'].some(k=>m[k]!==undefined&&!text(m[k]))||m.listOnly!==undefined&&typeof m.listOnly!=='boolean')return false;
+  if(m.previousPlans!==undefined){
+    if(!Array.isArray(m.previousPlans)||!day(m.effectiveFrom))return false;
+    const versions=[...m.previousPlans,m];
+    const stamp=v=>(v.effectiveFrom||'0000-00-00')+'T'+(v.effectiveTime||'00:00');
+    if(!m.previousPlans.every((v,i)=>plain(v)&&plain(versions[i+1])&&v.previousPlans===undefined&&
+      v.id===m.id&&validMedication(v)&&stamp(v)<stamp(versions[i+1])))return false;
+  }
   if(!plain(m)||!allowedId(m.id)||!text(m.name)||!m.name.trim()||!text(m.dose)||!m.dose.trim()||!['stroke','other'].includes(m.category))return false;
   if(!['daily','weekly','interval','list'].includes(m.mode)||!Array.isArray(m.days)||!m.days.length||!m.days.every(d=>int(d,0,6))||!Array.isArray(m.times)||!m.times.every(clock)||new Set(m.times).size!==m.times.length)return false;
   if(!day(m.start)||(m.end!==''&&(!day(m.end)||m.end<m.start))||(m.advance!==null&&!int(m.advance,0,1440)))return false;
@@ -16,10 +26,10 @@ function validMedication(m){
   return m.mode!=='interval'||(int(m.intervalHours,1,72)&&(m.intervalHours<=24||[36,48,72].includes(m.intervalHours))&&Number.isFinite(m.anchorAt)&&(m.untilAt===null||(Number.isFinite(m.untilAt)&&m.untilAt>m.anchorAt))&&m.times.length===1);
 }
 function validHistory(r){
-  return plain(r)&&allowedId(r.medId)&&day(r.day)&&(clock(r.time)||(r.time===''&&r.unscheduled===true))&&timestamp(r.recordedAt)&&['taken','skipped'].includes(r.status)&&text(r.name)&&text(r.dose)&&(r.scheduledLabel===undefined||text(r.scheduledLabel));
+  return plain(r)&&(r.takenAt===undefined||timestamp(r.takenAt)&&r.takenAt<=r.recordedAt)&&(r.by===undefined||text(r.by)&&r.by.length<=60)&&allowedId(r.medId)&&day(r.day)&&(clock(r.time)||(r.time===''&&r.unscheduled===true))&&timestamp(r.recordedAt)&&['taken','skipped'].includes(r.status)&&text(r.name)&&text(r.dose)&&(r.scheduledLabel===undefined||text(r.scheduledLabel));
 }
 export function hasPlan(s){
-  return s.meds.length>0||Object.keys(s.history||{}).length>0||Object.keys(s.taken||{}).length>0||Object.keys(s.supplies||{}).length>0;
+  return !!(s.profile?.name||s.profile?.allergies||s.profile?.reviewed)||s.meds.length>0||Object.keys(s.history||{}).length>0||Object.keys(s.taken||{}).length>0||Object.keys(s.supplies||{}).length>0;
 }
 export function readBackup(raw){
   const fail=()=>{throw Error('Choose an unmodified private plan file exported from Dosewell.')};
@@ -31,8 +41,9 @@ export function readBackup(raw){
   if(!plain(s.settings)||!int(s.settings.advance,0,1440)||typeof s.settings.sound!=='boolean'||typeof s.settings.notifications!=='boolean')fail();
   if(!objOf(s.taken,timestamp)||!objOf(s.fired,timestamp)||!objOf(s.snoozes,timestamp)||!objOf(s.history,validHistory))fail();
   if(!objOf(s.supplies,(v,k)=>allowedId(k)&&plain(v)&&int(v.remaining,0,99999)&&int(v.threshold,0,99999)&&allowedId(v.revision)))fail();
+  if(s.profile!==undefined&&(!plain(s.profile)||!text(s.profile.name)||!text(s.profile.allergies)||(s.profile.reviewed!==''&&!day(s.profile.reviewed))))fail();
   if(!hasPlan(s))throw Error('This backup contains no medication entries or dose history.');
-  return {version:1,meds:s.meds,history:s.history,taken:s.taken,fired:s.fired,snoozes:s.snoozes,supplies:s.supplies,settings:{advance:s.settings.advance,sound:s.settings.sound,notifications:false}};
+  return {version:1,meds:s.meds,...(s.profile?{profile:{name:s.profile.name,allergies:s.profile.allergies,reviewed:s.profile.reviewed}}:{}),history:s.history,taken:s.taken,fired:s.fired,snoozes:s.snoozes,supplies:s.supplies,settings:{handoff:s.settings.handoff===true,advance:s.settings.advance,sound:s.settings.sound,notifications:false}};
 }
 export function exportBackup(state){
   return JSON.stringify({format:'dosewell-plan-backup-v1',plan:state});

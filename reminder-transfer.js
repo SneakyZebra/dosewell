@@ -1,3 +1,4 @@
+import {scheduledPlans} from './plan-changes.js';
 import {advanceMinutes,calendarFile,clockTime,dayKey,firstNext,medicationTitle} from './schedule.js';
 
 export const calendarName='Dosewell-medication-schedule.ics';
@@ -12,12 +13,12 @@ function validDate(v){
 
 export function transferLink(state,base,now=new Date()){
   const rows=[];
-  for(const m of state.meds){
+  for(const m of scheduledPlans(state.meds)){
     if(m.mode==='list'||!m.times.some(t=>firstNext(m,t,now)))continue;
     const timing=m.mode==='interval'
       ? ['h',m.intervalHours,m.anchorAt,m.untilAt??null]
       : ['d',m.start,m.end||'',m.days.reduce((bits,d)=>bits|(1<<d),0),m.times];
-    rows.push([m.id,medicationTitle(m),m.dose,advanceMinutes(m,state.settings),timing]);
+    rows.push([m.id+(m.segment?'-'+m.segment.replace(/:/g,''):''),medicationTitle(m),m.dose,advanceMinutes(m,state.settings),timing]);
   }
   if(!rows.length||rows.length>100)return null;
   const raw=JSON.stringify([1,rows]);

@@ -1,8 +1,11 @@
+import {revisePlan,planForDay} from './plan-changes.js';
+import {lastTaken,takenLabel} from './dose-log.js';
+import {visitPage,editProfile,handoffPage,shareHandoff} from './care.js';
 import {showMedicationInfo} from './medication-info.js';
 import {showInteractionChecker,includeSavedInCheck} from './interaction-checker.js';
-import {onAppleMobile,showIphoneSetup} from './iphone-setup.js';
+import {onAppleMobile,showIphoneSetup,updateExportNote} from './iphone-setup.js';
 import {nativePlatform,nativeAction,paintNative,syncNative,importNativeFile} from './native-alarms.js';
-import {alignDoseKeys,logDose,logAsNeeded,undoLog,snoozeDose,updateSupply,doseAt,recordedStatus} from './dose-log.js';
+import {logDose,logAsNeeded,undoLog,snoozeDose,updateSupply,doseAt,recordedStatus} from './dose-log.js';
 import {icon} from './icons.js';
 import {read,change,storageStatus,onLocalChange} from './store.js';
 import {nav,navItems,overview,historyPage,medicationPage,remindersPage,h,btnIcon} from './view.js';
@@ -31,8 +34,12 @@ function render(){
   const period=['7','30','all'].includes(parts[1])?parts[1]:'7';
   const iphoneSetup=!nativePlatform&&view==='reminders'&&parts[1]==='iphone';
   if(iphoneSetup)showIphoneSetup(main,read);
+  else if(view==='medications'&&parts[1]==='visit')main.innerHTML=visitPage(state);
+  else if(view==='overview'&&parts[1]==='handoff')main.innerHTML=handoffPage(state);
   else if(view==='interactions')showInteractionChecker(main,state);
   else main.innerHTML=view==='overview'?overview(state,selected,part):view==='history'?historyPage(state,period):view==='medications'?medicationPage(state,filter):remindersPage(state);
+  const calendarNote=document.getElementById('calendar-change-note');
+  if(calendarNote&&!nativePlatform&&onAppleMobile())updateExportNote(calendarNote,state,true);
   paintNative();
   document.title=(iphoneSetup?'iPhone setup':navItems.find(([v])=>view===v)?.[2]||'Overview')+' | Dosewell';
   document.querySelector('#setup-prompt').hidden=!offerPhoneSetup||view==='reminders'||view==='interactions'||!state.meds.some(m=>m.mode!=='list');
@@ -52,15 +59,14 @@ function openDialog(title,content){
   if(!dialog.open)dialog.showModal();
 }
 function openEditor(med,cat){
-  showEditor(dialog,med,cat,state.settings,async item=>{
+  showEditor(dialog,med,cat,state.settings,async (item,effective,time,confirmed)=>{
     await save(s=>{
       const pos=s.meds.findIndex(m=>m.id===item.id);
       if(med&&pos<0)throw Error('This medication was removed in another tab. Close this form and review your list.');
       if(med&&JSON.stringify(s.meds[pos])!==JSON.stringify(med))throw Error('This medication was edited in another tab. Reopen it to view the latest schedule.');
       if(pos<0)s.meds.push(item);else{
-        alignDoseKeys(s,s.meds[pos],item);
-        s.meds[pos]=item;
-        for(const key of Object.keys(s.snoozes))if(key.startsWith(item.id+'|'))delete s.snoozes[key];
+        s.meds[pos]=revisePlan(s,s.meds[pos],item,effective,dayKey(new Date()),time,confirmed);
+        for(const key of Object.keys(s.snoozes))if(key.startsWith(item.id+'|')&&!doseAt(s,key))delete s.snoozes[key];
       }
     });
     includeSavedInCheck(item.id);
@@ -76,7 +82,7 @@ function openEditor(med,cat){
     openDialog('Remove medication?','<p>Remove <b>'+h(m.name)+'</b> from this list and cancel its in-page reminders? Remove any exported calendar events and phone alarms for this entry as well.</p><p>This removes the entry from Dosewell only. Follow your prescriber’s instructions for treatment.</p><div class="form-buttons"><button class="btn outline" id="keep-editing">Keep medication</button><button class="btn danger" id="confirm-remove">Remove entry</button></div>');
     document.querySelector('#keep-editing').onclick=()=>openEditor(m,m.category);
     document.querySelector('#confirm-remove').onclick=async()=>{await save(s=>{s.meds=s.meds.filter(v=>v.id!==m.id);delete s.supplies[m.id];for(const k of Object.keys(s.snoozes))if(k.startsWith(m.id+'|'))delete s.snoozes[k]});dialog.close();toast('Medication removed from this planner.')};
-  });
+  },Object.values(state.history||{}).filter(r=>r.medId===med?.id&&r.day===dayKey(new Date())));
 }
 function openSupply(id){
   const data=read(),med=data.meds.find(m=>m.id===id);
@@ -99,17 +105,30 @@ function openSnooze(key){
     catch(err){dialog.querySelector('.snooze-feedback').textContent=err.message}
   });
 }
-function confirmUnscheduled(id){
-  const med=read().meds.find(m=>m.id===id&&m.mode==='list');if(!med)return;
-  const key='unscheduled|'+crypto.randomUUID();
-  openDialog('Record a dose already taken','<p>Record <b>'+h(medicationTitle(med))+' · '+h(med.dose)+'</b> in your history using the current time.</p><div class="form-buttons"><button class="btn outline" data-action="close">Cancel</button><button class="btn primary" id="confirm-unscheduled">Record as taken</button></div>');
-  dialog.querySelector('#confirm-unscheduled').onclick=async e=>{
-    e.currentTarget.disabled=true;
-    try{await save(s=>logAsNeeded(s,id,key));dialog.close();toast('Dose recorded in History.')}
-    catch(error){toast(error.message);dialog.close()}
+function openRecord({key,id,status='taken'}){
+  const latest=read(), row=key?doseAt(latest,key):null,now=new Date();
+  const raw=id?latest.meds.find(m=>m.id===id):null;
+  const med=row?.med||(raw&&planForDay(raw,dayKey(now)));
+  if(!med||(!row&&(med.mode!=='list'||med.listOnly)))return;
+  const last=lastTaken(latest,med.id),eventKey=key||'unscheduled|'+crypto.randomUUID();
+  const stamp=dayKey(now)+'T'+String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  openDialog(status==='taken'?'Record a dose taken':'Record a skipped dose','<form class="care-form"><h3>'+h(medicationTitle(med))+' · '+h(med.dose)+'</h3>'+
+    (row?'<p>Scheduled '+h(row.day)+' · '+h(doseTimeLabel(row))+'</p>':'')+
+    '<p>Last recorded dose: '+(last?h(takenLabel(last)):'No previous entry')+'</p>'+
+    (status==='taken'?'<label>When did you take it?<input type="datetime-local" name="actual" required value="'+stamp+'" max="'+stamp+'"></label>':'')+
+    (latest.settings.handoff?'<label>Recorded by (optional)<input name="recorder" maxlength="60" autocomplete="off"></label>':'')+
+    '<button class="btn primary">'+(status==='taken'?'Save as taken':'Save as skipped')+'</button><p role="alert"></p></form>');
+  const form=dialog.querySelector('form');
+  form.onsubmit=async e=>{e.preventDefault();const submit=form.querySelector('button');submit.disabled=true;
+    const fd=new FormData(form),actual=fd.get('actual'),details={by:String(fd.get('recorder')||'').trim()};
+    if(actual)details.takenAt=new Date(actual).getTime();
+    try{await save(s=>{
+      if(!s.settings.handoff)delete details.by;
+      if(key)logDose(s,key,status,new Date(),details);else logAsNeeded(s,id,eventKey,new Date(),details);
+    });dialog.close();toast('Dose recorded.');}
+    catch(err){form.querySelector('[role=alert]').textContent=err.message;submit.disabled=false;}
   };
 }
-
 function audioReady(){
   if(!state.settings.sound)return;
   try{const Context=window.AudioContext||window.webkitAudioContext;if(!Context)return;audioContext||=new Context();if(audioContext.state==='suspended')audioContext.resume().catch(()=>{})}catch{}
@@ -128,7 +147,8 @@ function refreshAlarms(){
   visibleEvents=visibleEvents.filter(e=>{
     if(e.test)return true;
     const m=state.meds.find(m=>m.id===e.medId);
-    return m&&medicationTitle(m)===e.name&&m.dose===e.dose&&!recordedStatus(state,e.doseKey)&&!(state.snoozes[e.doseKey]>Date.now())&&dosesFor([m],e.day).some(d=>d.key===e.doseKey)&&(e.kind!=='advance'||Date.now()<e.when);
+    const current=m&&doseAt(state,e.doseKey)?.med;
+    return current&&medicationTitle(current)===e.name&&current.dose===e.dose&&!recordedStatus(state,e.doseKey)&&!(state.snoozes[e.doseKey]>Date.now())&&dosesFor([m],e.day).some(d=>d.key===e.doseKey)&&(e.kind!=='advance'||Date.now()<e.when);
   });
   alarmContainer.innerHTML=visibleEvents.map(e=>{
     const key=h(e.doseKey);
@@ -199,24 +219,25 @@ document.addEventListener('click',async e=>{
     if(d.date){selected=d.date;part=null;render();document.querySelector('[data-date="'+selected+'"]')?.focus({preventScroll:true});return}
     if(d.edit){const m=state.meds.find(v=>v.id===d.edit);if(m)openEditor(m,m.category);return}
     if(d.part!==undefined){part=part===Number(d.part)?null:Number(d.part);render();main.querySelector('[data-part="'+d.part+'"]')?.focus({preventScroll:true});return}
-    if(d.take||d.skip){
-      const key=d.take||d.skip;
-      await save(s=>logDose(s,key,d.take?'taken':'skipped'));
-      const supply=state.supplies[state.history[key].medId];
-      toast(d.take?'Dose recorded as taken.'+(supply&&supply.remaining<=supply.threshold?' Refill reminder: '+supply.remaining+' doses left.':''):'Dose recorded as skipped.');return;
-    }
+    if(d.take||d.skip){openRecord({key:d.take||d.skip,status:d.take?'taken':'skipped'});return}
     if(d.logUndo){await save(s=>undoLog(s,d.logUndo,Number(d.stamp)));toast('Dose record undone.');return}
     if(d.snooze){openSnooze(d.snooze);return}
     if(d.supply){openSupply(d.supply);return}
-    if(d.asNeeded){confirmUnscheduled(d.asNeeded);return}
+    if(d.asNeeded){openRecord({id:d.asNeeded});return}
     if(d.dismiss){visibleEvents=visibleEvents.filter(v=>v.id!==d.dismiss);refreshAlarms();return}
     switch(d.action){
-      case 'add':case 'add-stroke':case 'add-other':openEditor(null,d.action==='add-other'||(d.action==='add'&&filter==='other')?'other':'stroke');break;
+      case 'add':case 'add-stroke':case 'add-other':openEditor(null,d.action==='add-stroke'||(d.action==='add'&&filter==='stroke')?'stroke':'other');break;
       case 'close':dialog.close();break;
       case 'prev-week':case 'next-week':selected=shiftDay(selected,d.action==='prev-week'?-7:7);render();document.querySelector('[data-action="'+d.action+'"]')?.focus({preventScroll:true});break;
       case 'today':selected=dayKey(new Date());part=null;render();break;
       case 'all-periods':part=null;render();break;
-      case 'print-history':window.print();break;
+      case 'visit-details':editProfile(state,openDialog,dialog,save);break;
+      case 'handoff-on':case 'handoff-off':await save(s=>s.settings.handoff=d.action==='handoff-on');break;
+      case 'share-handoff':shareHandoff(state,openDialog,dialog);break;
+      case 'print-list':case 'print-history':
+        if(window.DosewellNative)window.DosewellNative.message(JSON.stringify({action:'print'}));
+        else if(nativePlatform==='iPhone')window.webkit.messageHandlers.dosewell.postMessage(JSON.stringify({action:'print'}));
+        else window.print();break;
       case 'sound':await save(s=>s.settings.sound=!s.settings.sound);audioReady();break;
       case 'notify':await notifications();break;
       case 'test':audioReady();await present({id:'sample',test:true,title:'Test reminder',body:'This is a sample alarm. No medication dose is due from this test.'});break;
@@ -236,7 +257,7 @@ document.addEventListener('click',async e=>{
       case 'phone-alarms':phoneExport(read,openDialog,dialog);break;
       case 'enable-app-alarms':case 'test-app-alarm':case 'stop-app-alarms':nativeAction(d.action);break;
       case 'iphone-help':dialog.close();break;
-      case 'help':if(nativePlatform){openDialog('Dosewell help','<p>Enter your medications and schedules, then enable Dosewell alarms in Reminders. Dosewell stores your plan on this device. Record doses in Today. Dismissing an alarm does not record a dose.</p><p>Names and doses may appear on the lock screen. Ask your pharmacist to review your full medication list for interactions.</p>');break}openDialog('Help & privacy','<h3>Use Dosewell from your home screen</h3><p><a class="text-link" href="#reminders/iphone" data-action="iphone-help">Set up Dosewell in Safari and Apple Calendar</a></p><p>On iPhone, use Safari’s Share menu and choose Add to Home Screen. On Android, look for Install app or Add to Home screen in the browser menu.</p><h3>Your medication list</h3><p>Enter each medicine and dose from your current prescription, or use Take photo in Add medication to fill the label fields. Check the suggested text before saving. The photo is processed on this device and discarded when the form closes. Choose daily times, an hourly interval, selected days, or list only. In Today, record a dose after taking it, log a skipped dose, or snooze its reminder. History keeps your recorded entries. For a list only medicine, use Log a dose on the Medications page.</p><h3>Where your plan is saved</h3><p>Your medication plan, dose history and refill counts are saved in this browser on this device. If you choose an online DrugBank search when available, the medication names you search and the product IDs you confirm go to DrugBank through Dosewell’s online service. Anyone with access to this browser profile can view them. Clearing browser data removes the plan.</p><h3>Reminder delivery</h3><p>Keep the page open and your device awake for in-page alarms. Test the sound in Reminders. For alerts with the site closed on iPhone, use iPhone setup to import your schedule into Apple Calendar. You can also choose Clock alarms for supported phone setup options. Confirm the alerts on your device. Medication names may appear on the lock screen if you enable notifications.</p><h3>Interaction warnings</h3><p>The checker covers selected pairs. Ask a pharmacist to review your complete list, especially before adding a new medicine or changing a dose.</p>');break;
+      case 'help':if(nativePlatform){openDialog('Dosewell help','<p>Enter your medications and schedules, then enable Dosewell alarms in Reminders. Dosewell stores your plan on this device. Record doses in Today. Dismissing an alarm does not record a dose.</p><p>Names and doses may appear on the lock screen. Ask your pharmacist to review your full medication list for interactions.</p>');break}openDialog('Help & privacy','<h3>Use Dosewell from your home screen</h3><p><a class="text-link" href="#reminders/iphone" data-action="iphone-help">Set up Dosewell in Safari and Apple Calendar</a></p><p>On iPhone, use Safari’s Share menu and choose Add to Home Screen. On Android, look for Install app or Add to Home screen in the browser menu.</p><h3>Your medication list</h3><p>Enter each medicine and dose from your current prescription, or use Take photo in Add medication to fill the label fields. Check the suggested text before saving. The photo is processed on this device and discarded when the form closes. Choose daily times, an hourly interval, selected days, or list only. In Today, record a dose after taking it, log a skipped dose, or snooze its reminder. History keeps your recorded entries. For an as-needed medicine, use Log a dose on the Medications page.</p><h3>Where your plan is saved</h3><p>Your medication plan, dose history and refill counts are saved in this browser on this device. If you choose an online DrugBank search when available, the medication names you search and the product IDs you confirm go to DrugBank through Dosewell’s online service. Anyone with access to this browser profile can view them. Clearing browser data removes the plan.</p><h3>Reminder delivery</h3><p>Keep the page open and your device awake for in-page alarms. Test the sound in Reminders. For alerts with the site closed on iPhone, use iPhone setup to import your schedule into Apple Calendar. You can also choose Clock alarms for supported phone setup options. Confirm the alerts on your device. Medication names may appear on the lock screen if you enable notifications.</p><h3>Interaction warnings</h3><p>The checker covers selected pairs. Ask a pharmacist to review your complete list, especially before adding a new medicine or changing a dose.</p>');break;
     }
   }catch(err){toast(err.message||'The change could not be saved.')}
 });
@@ -259,4 +280,25 @@ if(nativePlatform){
   window.addEventListener('pageshow',syncNative);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncNative()});
   syncNative();
+}
+
+if(window.DosewellNative){
+  window.openDosewellAction=({choice,targets})=>{
+    if(!['Taken','Skip','Snooze'].includes(choice)||!Array.isArray(targets))return;
+    const s=read(),available=targets.filter(t=>{
+      const row=doseAt(s,t.key);
+      if(!row||row.when>new Date()||recordedStatus(s,t.key))return false;
+      // An old notification must never target a changed medication or amount.
+      return t.label==='Dose: '+medicationTitle(row.med)+' · '+row.med.dose||
+        t.label==='Snoozed: '+medicationTitle(row.med)+' · '+row.med.dose;
+    });
+    const act=key=>choice==='Snooze'?openSnooze(key):openRecord({key,status:choice==='Taken'?'taken':'skipped'});
+    if(available.length===1){act(available[0].key);return;}
+    openDialog('Review reminder',available.length?'<p>Select the dose for this action.</p>':'<p>This reminder has already been recorded or the schedule has changed. Check Today for the current plan.</p>');
+    for(const target of available){
+      const button=document.createElement('button');button.className='btn outline';button.textContent=target.label;
+      button.onclick=()=>act(target.key);dialog.querySelector('.dialog-content').append(button);
+    }
+  };
+  window.DosewellNative.message(JSON.stringify({action:'ready'}));
 }

@@ -1,3 +1,4 @@
+import {scheduledPlans} from './plan-changes.js';
 export const medicationTitle=med=>med.strength ? med.name+' '+med.strength : med.name;
 export const pad=value=>String(value).padStart(2,'0');
 export const dayKey=date=>[date.getFullYear(),pad(date.getMonth()+1),pad(date.getDate())].join('-');
@@ -11,7 +12,7 @@ export function doseTimeLabel(row){
   return row.med.mode==='interval' ? row.when.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',timeZoneName:'short'}) : timeLabel(row.time);
 }
 export function scheduleLabel(med){
-  if(med.mode==='list')return 'List only';
+  if(med.mode==='list')return med.listOnly ? 'List only' : 'As needed';
   if(med.mode==='interval')return 'Every '+hoursLabel(med.intervalHours)+' · first dose '+new Date(med.anchorAt).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'});
   return (med.days.length===7?'Daily':med.days.map(d=>dayNames[d]).join(', '))+' · '+med.times.map(timeLabel).join(', ');
 }
@@ -34,7 +35,7 @@ function fixedDose(med,day,time){
 export function dosesFor(meds,day){
   const start=new Date(day+'T00:00:00'),end=new Date(shiftDay(day,1)+'T00:00:00');
   const rows=[];
-  for(const med of meds){
+  for(const med of scheduledPlans(meds)){
     if(med.mode==='interval'){
       for(let row=nextInterval(med,start);row&&row.when<end;row=nextInterval(med,row.when.getTime()+1))rows.push(row);
     }else if(applies(med,day)){
@@ -104,7 +105,7 @@ function calendarSeries(med,now){
       const at=first.when.getTime()+i*step;
       if(med.untilAt!=null&&at>=med.untilAt)break;
       const phase=((at-med.anchorAt)/step)%phases;
-      series.push({uid:med.id+'-interval-'+med.anchorAt+'-'+med.intervalHours+'-'+phase,start:utcStamp(at),rule});
+      series.push({uid:med.id+(med.segment?'-'+med.segment:'')+'-interval-'+med.anchorAt+'-'+med.intervalHours+'-'+phase,start:utcStamp(at),rule});
     }
     return series;
   }
@@ -113,7 +114,7 @@ function calendarSeries(med,now){
   if(med.end)rule+=';UNTIL='+med.end.replaceAll('-','')+'T235959';
   return med.times.flatMap(time=>{
     const next=firstNext(med,time,now);
-    return next?[{uid:med.id+'-'+time.replace(':',''),start:next.day.replaceAll('-','')+'T'+time.replace(':','')+'00',rule}]:[];
+    return next?[{uid:med.id+(med.segment?'-'+med.segment:'')+'-'+time.replace(':',''),start:next.day.replaceAll('-','')+'T'+time.replace(':','')+'00',rule}]:[];
   });
 }
 function calendarDocument(events,count){
@@ -126,7 +127,7 @@ function displayAlarm(minutes,description){
 export function calendarFile(state,now=new Date()){
   const lines=[];
   let count=0;
-  for(const med of state.meds){
+  for(const med of scheduledPlans(state.meds)){
     if(med.mode==='list')continue;
     for(const {uid,start,rule} of calendarSeries(med,now)){
       count++;

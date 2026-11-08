@@ -10,16 +10,17 @@ const timeText=date=>date.toLocaleTimeString(undefined,{hour:'numeric',minute:'2
 
 async function scheduleSignature(state){
   const fields=state.meds.filter(m=>m.mode!=='list').map(m=>[
-    m.id,medicationTitle(m),m.dose,m.mode,m.start,m.end,m.anchorAt,m.untilAt,m.intervalHours,m.days,m.times,advanceMinutes(m,state.settings)
+    m.id,medicationTitle(m),m.dose,m.mode,m.start,m.end,m.anchorAt,m.untilAt,m.intervalHours,m.days,m.times,advanceMinutes(m,state.settings),...(m.previousPlans?.length?[m.effectiveFrom,m.effectiveTime,m.previousPlans]:[])
   ]).sort((a,b)=>String(a[0]).localeCompare(String(b[0])));
   const bytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(fields)));
   return Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
 }
-async function updateExportNote(note,state){
+export async function updateExportNote(note,state,changesOnly=false){
   try{
     const signature=await scheduleSignature(state);
     const last=JSON.parse(localStorage.getItem(exportKey)||'null');
     if(!last||!note.isConnected)return;
+    if(changesOnly&&signature===last.signature)return;
     note.hidden=false;
     note.textContent=signature===last.signature
       ? 'Last calendar file prepared on '+new Date(last.at).toLocaleDateString()+'. Check the imported events in Calendar.'

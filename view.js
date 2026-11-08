@@ -1,3 +1,5 @@
+import {scheduledPlans,planForDay} from './plan-changes.js';
+import {lastTaken,takenLabel} from './dose-log.js';
 import {onAppleMobile} from './iphone-setup.js';
 import {nativePlatform} from './native-alarms.js';
 import {recordedStatus,historyEntries,recordClock,recordTiming} from './dose-log.js';
@@ -68,7 +70,7 @@ export function schedule(state,selected,part=null){
 }
 function nextDose(state,now){
   let next=null;
-  for(const med of state.meds){
+  for(const med of scheduledPlans(state.meds)){
     if(med.mode==='list')continue;
     for(const time of med.times){
       let row=firstNext(med,time,now);
@@ -86,10 +88,15 @@ function dailySummary(state,now){
   const taken=rows.filter(d=>recordedStatus(state,d.key)==='taken').length;
   const skipped=rows.filter(d=>recordedStatus(state,d.key)==='skipped').length;
   const next=nextDose(state,now);
+  const previousForNext=next&&lastTaken(state,next.med.id);
   const when=next?(next.day===day?'Today':next.day===shiftDay(day,1)?'Tomorrow':dateLabel(localDay(next.day),{month:'short',day:'numeric'}))+' · '+doseTimeLabel(next):'';
-  return '<section class="day-summary"><div class="summary-top">'+icon('clock',20)+'<h2>Next scheduled dose</h2></div>'+
-    (next?'<p class="next-time">'+h(when)+'</p><p><b>'+infoName(next.med.name,medicationTitle(next.med))+'</b> · '+h(next.med.dose)+'</p>':'<p class="next-time">No upcoming doses</p>')+
-    '<div class="daily-progress"><div><span>Today’s record</span><b>'+taken+' / '+rows.length+' taken</b></div><progress max="'+(rows.length||1)+'" value="'+taken+'" aria-label="Scheduled doses marked taken today"></progress><small>'+skipped+' skipped · '+(rows.length-taken-skipped)+' unrecorded</small></div><a href="#history">View dose history '+icon('arrow',16)+'</a></section>';
+  const last=lastTaken(state),due=rows.filter(r=>r.when<=now&&!recordedStatus(state,r.key));
+  const lastLine=last ? '<b>'+h(last.name)+'</b><small>'+h(takenLabel(last))+'</small>' : '<b>No dose recorded yet</b>';
+  const dueLine=due.length ? '<b>'+h(medicationTitle(due[0].med))+'</b><small>'+h(due[0].med.dose)+' · Scheduled '+h(doseTimeLabel(due[0]))+(due.length>1?' · '+(due.length-1)+' more':'')+'</small>' : '<b>No doses awaiting a record</b>';
+  return '<section class="today-focus" aria-label="Today at a glance"><div><h2>Last dose recorded</h2>'+lastLine+'<a href="#history">Dose history</a></div>'+
+    '<div><h2>Due for review</h2>'+dueLine+(due.length?'<button class="text-link" data-take="'+h(due[0].key)+'">Record dose</button>':'')+'</div>'+
+    '<div><h2>Up next</h2>'+(next?'<b>'+infoName(next.med.name,medicationTitle(next.med))+'</b><small>'+h(when)+' · '+h(next.med.dose)+'</small>'+(previousForNext?'<small>Previous dose: '+h(takenLabel(previousForNext))+'</small>':''):'<b>No upcoming doses</b>')+'</div></section><p class="today-counts">Today: '+taken+' of '+rows.length+' scheduled doses marked taken · '+skipped+' skipped</p>';
+
 }
 function refillNotices(state){
   const low=state.meds.filter(m=>state.supplies[m.id]&&state.supplies[m.id].remaining<=state.supplies[m.id].threshold);
@@ -99,21 +106,28 @@ function refillNotices(state){
 function checkerCard(state){
   const n=counts(state.meds);
   const alerts=compare(state.meds).filter(p=>p.level!=='unassessed').length;
-  return '<section class="panel safety-card"><div class="section-title">'+badge('shield','lilac',23)+'<h2>Interaction checker</h2></div><p>Review your saved medicines together or try adding another product in the checker.</p><div class="pair-lines"><a href="#medications/stroke">'+icon('heart',18)+'Stroke medications <b>'+n.stroke+'</b></a><a href="#medications/other">'+icon('pill',18)+'Other medications <b>'+n.other+'</b></a></div>'+(alerts?'<div class="flag-line">'+icon('alert',16)+plural(alerts,'warning')+' to review</div>':'')+'<a href="#interactions" class="text-link">Review interactions '+icon('arrow',16)+'</a></section>';
+  return '<section class="panel safety-card"><div class="section-title">'+badge('shield','lilac',23)+'<h2>Interaction checker</h2></div><p>Review your saved medicines together or try adding another product in the checker.</p><div class="pair-lines"><a href="#medications/stroke">'+icon('heart',18)+'Stroke medications <b>'+n.stroke+'</b></a><a href="#medications/other">'+icon('pill',18)+'General medications <b>'+n.other+'</b></a></div>'+(alerts?'<div class="flag-line">'+icon('alert',16)+plural(alerts,'warning')+' to review</div>':'')+'<a href="#interactions" class="text-link">Review interactions '+icon('arrow',16)+'</a></section>';
 }
 export function overview(state,selected,part=null){
   const now=new Date();
   return '<section class="planner-intro app-intro"><div class="intro-title"><p>'+dateLabel(now,{dateStyle:'full'})+'</p><h1>Today</h1></div>'+btn('add','Add medication','plus','btn primary')+'</section>'+
     (!nativePlatform&&onAppleMobile()?'<div class="iphone-entry"><span>'+icon('calendar',19)+' Get dose reminders on your Lock Screen</span><a class="text-link" href="#reminders/iphone">Set up Apple Calendar '+icon('arrow',16)+'</a></div>':'')+
-    '<div class="overview-grid">'+schedule(state,selected,part)+'<aside>'+dailySummary(state,now)+refillNotices(state)+checkerCard(state)+'</aside></div>';
+    '<div id="calendar-change-note" role="status" hidden></div>'+ (state.meds.length?dailySummary(state,now):'')+
+    '<div class="overview-grid">'+schedule(state,selected,part)+'<aside>'+(!state.meds.length?dailySummary(state,now):'')+
+    '<section class="panel today-tools"><a href="#overview/handoff">Caregiver handoff</a><a href="#medications/visit">My current medications</a></section>'+refillNotices(state)+checkerCard(state)+'</aside></div>';
 }
 const pageHead=(title,sub,action='')=>'<div class="page-head"><div><h1>'+title+'</h1><p>'+sub+'</p></div>'+action+'</div>';
 export function medicationPage(state,filter){
-  const meds=state.meds.filter(m=>filter==='all'||m.category===filter);
-  const tabs=[['all','All medications'],['stroke','Stroke medications'],['other','Other medications']];
-  return pageHead('My medications','Select a medication name to read its MedlinePlus patient guide.',btn('add','Add medication','plus','btn primary'))+
-  '<section class="panel listing"><div class="filters" aria-label="Filter medications">'+tabs.map(([v,t])=>'<a '+(filter===v?'aria-current="page"':'')+' href="#medications/'+v+'">'+t+' <span>'+(v==='all'?state.meds.length:state.meds.filter(m=>m.category===v).length)+'</span></a>').join('')+'</div>'+
-  (meds.length?'<div class="med-list">'+meds.map(m=>'<article class="med-row">'+badge(m.category==='stroke'?'heart':'pill',m.category==='stroke'?'mint':'lilac')+'<div class="med-detail"><small>'+h(m.category==='stroke'?'Stroke medication':'Other medication')+'</small><h3>'+infoName(m.name,medicationTitle(m))+'</h3><p>'+h(m.dose)+'</p>'+(m.directions?'<div class="label-directions">'+h(m.directions)+'</div>':'')+'<span>'+icon('clock',14)+h(scheduleLabel(m))+'</span>'+(m.end?'<small>Through '+h(dateLabel(localDay(m.end),{dateStyle:'medium'}))+'</small>':'')+'<div class="med-tools"><button class="text-link" data-supply="'+h(m.id)+'">'+icon('bottle',15)+(state.supplies[m.id]?plural(state.supplies[m.id].remaining,'dose')+' left · Update supply':'Track refills')+'</button>'+(m.mode==='list'?'<button class="text-link" data-as-needed="'+h(m.id)+'">'+icon('check',16)+'Log a dose</button>':'')+'</div></div><button class="icon-button" aria-label="Edit '+h(m.name)+'" data-edit="'+h(m.id)+'">'+icon('edit',18)+'</button></article>').join('')+'</div>':
+  const today=dayKey(new Date());
+  const meds=state.meds.map(saved=>{
+    const active=planForDay(saved,today)||saved;
+    const pending=active.effectiveFrom!==saved.effectiveFrom||active.effectiveTime!==saved.effectiveTime;
+    return {...active,pendingPlan:pending?saved:null};
+  }).filter(m=>filter==='all'||m.category===filter);
+  const tabs=[['all','All medications'],['stroke','Stroke medications'],['other','General medications']];
+  return pageHead('My medications','Select a name for its MedlinePlus patient guide.',btn('add','Add medication','plus','btn primary'))+
+  '<div class="visit-tools"><a class="btn outline" href="#medications/visit">My current medications · print or save</a></div><section class="panel listing"><div class="filters" aria-label="Filter medications">'+tabs.map(([v,t])=>'<a '+(filter===v?'aria-current="page"':'')+' href="#medications/'+v+'">'+t+' <span>'+(v==='all'?state.meds.length:state.meds.filter(m=>m.category===v).length)+'</span></a>').join('')+'</div>'+
+  (meds.length?'<div class="med-list">'+meds.map(m=>'<article class="med-row">'+badge(m.category==='stroke'?'heart':'pill',m.category==='stroke'?'mint':'lilac')+'<div class="med-detail"><small>'+h(m.category==='stroke'?'Stroke medication':'General medication')+'</small><h3>'+infoName(m.name,medicationTitle(m))+'</h3><p>'+h(m.dose)+'</p>'+(m.directions?'<div class="label-directions">'+h(m.directions)+'</div>':'')+'<span>'+icon('clock',14)+h(scheduleLabel(m))+'</span>'+(m.pendingPlan?'<small>From '+h(m.pendingPlan.effectiveFrom)+' '+h(m.pendingPlan.effectiveTime||'')+': '+h(medicationTitle(m.pendingPlan))+' · '+h(m.pendingPlan.dose)+' · '+h(scheduleLabel(m.pendingPlan))+'</small>':'')+(m.end?'<small>Through '+h(dateLabel(localDay(m.end),{dateStyle:'medium'}))+'</small>':'')+'<div class="med-tools"><button class="text-link" data-supply="'+h(m.id)+'">'+icon('bottle',15)+(state.supplies[m.id]?plural(state.supplies[m.id].remaining,'dose')+' left · Update supply':'Track refills')+'</button>'+(m.mode==='list'&&!m.listOnly?'<button class="text-link" data-as-needed="'+h(m.id)+'">'+icon('check',16)+'Log a dose</button>':'')+'</div></div><button class="icon-button" aria-label="Edit '+h(m.name)+'" data-edit="'+h(m.id)+'">'+icon('edit',18)+'</button></article>').join('')+'</div>':
   '<div class="empty-state">'+badge('bottle','mint',29)+'<h3>No '+(filter==='all'?'':filter+' ')+'medications added</h3><p>Enter the name and dose exactly as they appear on your label.</p>'+btn('add','Add medication','plus','btn outline')+'</div>')+'</section>';
 }
 export function remindersPage(state){
@@ -135,7 +149,7 @@ export function historyPage(state,period='7'){
     days.get(r.day).push([key,r]);
   }
   const filters=[['7','Last 7 days'],['30','Last 30 days'],['all','All history']].map(([k,t])=>'<a href="#history/'+k+'" '+(period===k?'aria-current="page"':'')+'>'+t+'</a>').join('');
-  const groups=[...days].map(([day,entries])=>'<section class="history-day"><h2>'+h(dateLabel(localDay(day),{dateStyle:'full'}))+'</h2>'+entries.map(([key,r])=>'<article class="history-row"><div><b>'+(r.legacy?h(r.name):infoName(r.name))+'</b>'+(r.dose?' · '+h(r.dose):'')+'<small>'+h(recordTiming(r))+' · Logged '+h(recordClock(r))+'</small>'+(r.legacy?'<small>Earlier entry. Dose details were not saved.</small>':'')+'</div><span class="dose-status '+r.status+'">'+(r.status==='taken'?'Taken':'Skipped')+'</span><button class="text-link" data-log-undo="'+h(key)+'" data-stamp="'+r.recordedAt+'">Undo</button></article>').join('')+'</section>').join('');
+  const groups=[...days].map(([day,entries])=>'<section class="history-day"><h2>'+h(dateLabel(localDay(day),{dateStyle:'full'}))+'</h2>'+entries.map(([key,r])=>'<article class="history-row"><div><b>'+(r.legacy?h(r.name):infoName(r.name))+'</b>'+(r.dose?' · '+h(r.dose):'')+'<small>'+h(recordTiming(r))+(r.takenAt?' · '+h(takenLabel(r)):r.by?' · '+h(r.by):'')+' · Logged '+h(recordClock(r))+'</small>'+(r.legacy?'<small>Earlier entry. Dose details were not saved.</small>':'')+'</div><span class="dose-status '+r.status+'">'+(r.status==='taken'?'Taken':'Skipped')+'</span><button class="text-link" data-log-undo="'+h(key)+'" data-stamp="'+r.recordedAt+'">Undo</button></article>').join('')+'</section>').join('');
   return pageHead('Dose history','Doses you have recorded on this device.',records.length?btn('print-history','Print / Save PDF','print','btn outline'):'')+
     '<section class="panel history-panel"><div class="filters">'+filters+'</div><div class="history-overview"><b>'+totals.taken+' taken</b><span>'+totals.skipped+' skipped</span><small>'+(period==='all'?'All history':'Last '+period+' days')+'</small></div>'+
     (groups||'<div class="empty-state">'+badge('history','mint',24)+'<h3>No doses recorded for this period</h3><p>Mark a scheduled dose as taken or skipped in Today. Your entries will appear here.</p><a class="text-link" href="#overview">Open daily pillbox '+icon('arrow',16)+'</a></div>')+'</section>';

@@ -1,3 +1,4 @@
+import {scheduledPlans} from './plan-changes.js';
 import {read,change} from './store.js';
 import {readBackup,hasPlan} from './plan-backup.js';
 import {advanceMinutes,medicationTitle,dayKey,clockTime,shiftDay} from './schedule.js';
@@ -73,16 +74,16 @@ function nextTime(rule,after,skip){
 }
 export function alarmRules(state){
   const rules=[],skip=new Set([...Object.keys(state.taken),...Object.entries(state.history||{}).filter(([,r])=>r.status==='skipped'||r.status==='taken').map(([k])=>k),...Object.keys(state.snoozes||{})]);
-  for(const med of state.meds){
-    if(med.mode==='list')continue;
+  for(const med of scheduledPlans(state.meds)){
+    if(med.mode==='list'||(med.end&&med.end<dayKey(new Date())))continue;
     const name=medicationTitle(med)+' · '+med.dose;
     for(const lead of new Set([0,advanceMinutes(med,state.settings)||0])){
       const base={med:med.id,lead,label:(lead?'In '+lead+' min: ':'Dose: ')+name};
-      if(med.mode==='interval')rules.push({...base,id:med.id+'|interval|'+lead,mode:'interval',anchor:med.anchorAt,step:med.intervalHours*3600000,until:med.untilAt||0});
-      else for(const time of med.times)rules.push({...base,id:med.id+'|'+time+'|'+lead,mode:'weekly',time,start:med.start,end:med.end,days:med.days.reduce((mask,d)=>mask|(1<<d),0)});
+      if(med.mode==='interval')rules.push({...base,id:med.id+'|interval|'+lead+(med.segment||''),mode:'interval',anchor:med.anchorAt,step:med.intervalHours*3600000,until:med.untilAt||0});
+      else for(const time of med.times)rules.push({...base,id:med.id+'|'+time+'|'+lead+(med.segment||''),mode:'weekly',time,start:med.start,end:med.end,days:med.days.reduce((mask,d)=>mask|(1<<d),0)});
     }
-    for(const [key,at] of Object.entries(state.snoozes||{}))if(key.startsWith(med.id+'|')&&!state.taken[key]&&!state.history?.[key])
-      rules.push({id:key+'|snooze',med:med.id,lead:0,label:'Snoozed: '+name,mode:'snooze',at});
+    for(const [key,at] of Object.entries(state.snoozes||{}))if(!rules.some(r=>r.doseKey===key)&&key.startsWith(med.id+'|')&&!state.taken[key]&&!state.history?.[key])
+      rules.push({id:key+'|snooze',med:med.id,lead:0,label:'Snoozed: '+name,mode:'snooze',doseKey:key,at});
   }
   return {rules,skip:[...skip]};
 }
