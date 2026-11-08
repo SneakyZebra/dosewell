@@ -1,4 +1,5 @@
-import {phoneAlarms,alarmTimeLabel,readableDate} from './phone-alarms.js';
+import {clockIdentity,clockLink} from './clock-bridge.js';
+import {phoneAlarms,alarmTimeLabel,readableDate,clockCanSet} from './phone-alarms.js';
 import {dayKey} from './schedule.js';
 import {transferLink} from './reminder-transfer.js';
 
@@ -41,6 +42,51 @@ export function showAndroidClock(container,getState,{allowShare=true}={}){
     const now=new Date(),items=androidRequests(getState(),now);
     container.replaceChildren();
     if(!items.length){container.append(text('p','There are no future scheduled doses to set in Clock.'));return}
+    const native=document.createElement('section');
+    native.append(text('h3','Send an alarm to Android Clock'));
+    const install=text('a','Download Dosewell Clock for Android');install.href='./dosewell-clock.apk';install.download='dosewell-clock.apk';install.className='btn outline';
+    native.append(text('p','On your Android phone, open the download and confirm installation once. Return here and tap a dose or warning to send it to Clock.'),install);
+    const connection=text('p','');connection.setAttribute('role','status');native.append(connection);
+    if(items.some(r=>!r.repeat))native.append(text('p','Hourly reminders are individual alarms for the upcoming 24 hours. A course with an end date uses individual alarms for each upcoming time. Return for later alarms.'));
+    const links=[];
+    for(const item of items){
+      const {entry}=item,card=document.createElement('article');card.className='phone-entry';
+      card.append(text('b',entry.label),text('p',alarmTimeLabel(entry)+' · '+item.schedule));
+      if(item.repeat||clockCanSet(entry,now)){
+        const link=text('a','Set in Android Clock');link.className='btn small primary';
+        link.setAttribute('aria-label','Set in Android Clock: '+entry.label+' at '+alarmTimeLabel(entry));
+        link.hidden=true;
+        link.onclick=event=>{
+          const current=androidRequests(getState()).find(r=>r.entry.key===entry.key&&r.request===item.request);
+          if(!current||(!current.repeat&&!clockCanSet(current.entry))||Date.now()-Number(link.dataset.issued)>240000){
+            event.preventDefault();render();return;
+          }
+          connection.textContent='If this is your first alarm, match the code '+link.dataset.code+' in Dosewell Clock. Check the alarm in Clock after the handoff.';
+        };
+        links.push({link,item});card.append(link);
+      }else card.append(text('p','This alarm starts later. Return closer to the date shown to add it to Clock.'));
+      native.append(card);
+    }
+    container.append(native);
+    if(links.length){
+      const refresh=async()=>{
+        try{
+          const identity=await clockIdentity(),issued=Date.now();
+          await Promise.all(links.map(async({link,item})=>{
+            link.href=await clockLink(identity,item,issued);link.dataset.issued=String(issued);
+            link.dataset.code=identity.code;link.hidden=false;
+          }));
+          connection.textContent='For the first alarm, match '+identity.code+' in the companion and approve. When a schedule changes, review older alarms in Clock.';
+          setTimeout(()=>{if(native.isConnected&&native.closest('dialog:not([open])')===null)refresh();},180000);
+        }catch{
+          connection.textContent='This browser could not save a connection. Open Dosewell in Chrome on Android or use the other setup options below.';
+        }
+      };
+      refresh();
+    }
+    const alternate=document.createElement('details');alternate.className='export-guide';
+    alternate.append(text('summary','Other ways to set up Clock'));
+    container.append(alternate);
     const steps=document.createElement('ol');steps.className='clock-steps';
     steps.append(text('li','Copy the alarm request below.'),text('li','Open the Gemini mobile app on your phone, paste the request, and submit it. On Galaxy, you can also say an individual request to Bixby.'),text('li','Open Clock → Alarm. Verify each dose time, advance warning, repeat day, and enabled switch. If an alarm is missing, use its individual request below. Review old Dosewell alarms after a schedule change.'));
     const feedback=text('p','');feedback.setAttribute('role','status');
@@ -55,9 +101,10 @@ export function showAndroidClock(container,getState,{allowShare=true}={}){
       if(current.map(r=>r.entry.key).join('|')!==items.map(r=>r.entry.key).join('|')||androidSetupText(current)!==androidSetupText(items)){render();return}
       copy(androidSetupText(current),'Copied. Paste into Gemini on your phone and submit, then check Clock.');
     };
-    container.append(text('p','Downloading an .ics file adds calendar events when imported. Android Clock needs its own alarms.'),steps,copyAll,feedback,display);
-    container.append(text('p','The request includes the medication names, doses, and times shown below. Your phone assistant receives them when you paste or speak the request.'));
-    if(items.some(r=>!r.repeat))container.append(text('p','Dated alarms are one-time entries. For an hourly schedule, this list covers the next 24 hours, or the first upcoming alert if later. For a course with an end date, it shows the next alarm for each scheduled time. Return here for later alarms.'));
+    alternate.append(text('p','Downloading an .ics file adds calendar events when imported. Android Clock needs its own alarms.'),steps,copyAll);
+    container.append(feedback,display);
+    alternate.append(text('p','The request includes the medication names, doses, and times shown below. Your phone assistant receives them when you paste or speak the request.'));
+    if(items.some(r=>!r.repeat))alternate.append(text('p','Dated alarms are one-time entries. For an hourly schedule, this list covers the next 24 hours, or the first upcoming alert if later. For a course with an end date, it shows the next alarm for each scheduled time. Return here for later alarms.'));
     const individual=document.createElement('details');individual.className='export-guide';individual.open=items.length<=3;
     individual.append(text('summary','Individual alarm requests ('+items.length+')'));
     for(const item of items){
@@ -73,10 +120,10 @@ export function showAndroidClock(container,getState,{allowShare=true}={}){
       };
       details.append(single);card.append(details);individual.append(card);
     }
-    container.append(individual);
+    alternate.append(individual);
     const manual=document.createElement('details');manual.className='export-guide';
     manual.append(text('summary','Set an alarm directly in Clock'),text('p','Open Clock → Alarm. Tap an existing alarm to update it, or tap + to add one. Enter the time, choose the repeat days, paste or type the label, and save. Set advance warnings as separate alarms.'));
-    container.append(manual);
+    alternate.append(manual);
     if(allowShare){
       const send=button('Share Clock setup link');
       send.onclick=async()=>{

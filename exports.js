@@ -74,6 +74,9 @@ export function phoneExport(getState,openDialog,dialog,requestedPlatform='') {
   let platform=requestedPlatform||(apple?'apple':/Android/i.test(navigator.userAgent)?'android':'');
   const render=()=>{
     const entries=phoneAlarms(getState());
+    if(!entries.length&&platform==='android'){
+      openDialog('Android Clock setup','<p>Install the companion once. Add a medication with a future dose time to send your first alarm.</p><div class="export-choices"><a class="btn outline" href="./clock-install.html">Install Dosewell Clock</a><button class="btn primary" data-action="add-stroke">Add medication</button></div>');return;
+    }
     if(!entries.length){
       openDialog('Phone alarms','<p>Add a future dose time in your medication list to export a phone alarm.</p><button class="btn primary" data-action="add-stroke">Add medication</button>');
       return;

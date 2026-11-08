@@ -146,3 +146,5 @@ textarea:focus-visible{outline:3px solid #197a93;outline-offset:3px}
 @media print{.setup-prompt{display:none!important}}
 
 footer .plan-move-link{color:#446452;text-decoration:underline;margin-left:5px}
+
+.phone-entry .btn[hidden]{display:none}
