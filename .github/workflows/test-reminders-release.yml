@@ -1,0 +1,48 @@
+name: Test Dosewell Reminders release
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Dosewell Reminders release tag
+        required: true
+        default: reminders-v2.0
+  release:
+    types: [published]
+permissions:
+  contents: read
+jobs:
+  android:
+    if: startsWith(github.event.release.tag_name || inputs.tag, 'reminders-v')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+      - name: Boot Android 15 and verify the released alarms
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
+          export ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0" ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --pattern dosewell-reminders.apk --pattern dosewell-reminders-source.zip
+          unzip -q dosewell-reminders-source.zip -d source
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'system-images;android-35;default;x86_64' emulator >/dev/null
+          sudo chmod a+rw /dev/kvm
+          export ANDROID_AVD_HOME="$RUNNER_TEMP/avds"
+          mkdir -p "$ANDROID_AVD_HOME"
+          echo no | avdmanager create avd --path "$ANDROID_AVD_HOME/Dosewell.avd" -n Dosewell -k 'system-images;android-35;default;x86_64' --force
+          printf 'avd.ini.encoding=UTF-8\npath=%s/Dosewell.avd\ntarget=android-35\n' "$ANDROID_AVD_HOME" > "$ANDROID_AVD_HOME/Dosewell.ini"
+          sed -i '/^disk.dataPartition.size=/d' "$ANDROID_AVD_HOME/Dosewell.avd/config.ini"
+          echo 'disk.dataPartition.size=2048M' >> "$ANDROID_AVD_HOME/Dosewell.avd/config.ini"
+          "$ANDROID_HOME/emulator/emulator" @Dosewell -accel on -no-window -no-audio -no-boot-anim -no-snapshot -no-metrics -gpu swiftshader_indirect -memory 2048 -cores 2 -skin 480x800 > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          emulator_pid=$!
+          for attempt in $(seq 1 90); do
+            if ! kill -0 "$emulator_pid"; then tail -50 "$RUNNER_TEMP/emulator.log"; exit 1; fi
+            if [ "$(timeout 4 adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r' || true)" = 1 ]; then break; fi
+            sleep 3
+          done
+          test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1
+          adb install dosewell-android.apk
+          bash source/qa/check.sh "$PWD/dosewell-reminders.apk"
