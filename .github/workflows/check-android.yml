@@ -1,0 +1,28 @@
+name: Check Android alarms
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['dosewell-android.apk', 'dosewell-android-source.zip']
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start Android 15 test device
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "system-images;android-35;google_apis;x86_64" "emulator" >/dev/null
+          sudo chmod a+rw /dev/kvm
+          echo no | avdmanager create avd -n DosewellTest -k 'system-images;android-35;google_apis;x86_64' --force
+          "$ANDROID_HOME/emulator/emulator" @DosewellTest -no-window -no-audio -no-boot-anim -no-snapshot -gpu swiftshader_indirect > "$RUNNER_TEMP/emulator.log" 2>&1 &
+          adb wait-for-device
+          until [ "$(adb shell getprop sys.boot_completed | tr -d '\r')" = 1 ]; do sleep 2; done
+      - name: Verify app-owned dose and advance alarms
+        run: |
+          unzip -q dosewell-android-source.zip -d source
+          export ANDROID_BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0" ANDROID_JAR="$ANDROID_HOME/platforms/android-35/android.jar"
+          bash source/qa/check.sh "$PWD/dosewell-android.apk"
