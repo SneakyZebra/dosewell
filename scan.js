@@ -57,6 +57,7 @@ export function attachScanner(dialog,form) {
   for(const key of fieldNames)form.elements.namedItem(key).addEventListener('input',()=>{if(!review.hidden)check.checked=false});
   function apply(fields) {
     for(const key of fieldNames)form.elements.namedItem(key).value=fields[key];
+    form.elements.namedItem('name').dispatchEvent(new Event('input',{bubbles:true}));
     check.checked=false;check.required=true;review.hidden=false;clearSuggestion();
     message.textContent='Fields filled. Compare them with the label, complete any blanks, and choose the schedule below.';
     form.elements.namedItem('name').focus({preventScroll:true});

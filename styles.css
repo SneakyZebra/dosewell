@@ -194,3 +194,6 @@ footer .plan-move-link{color:#446452;text-decoration:underline;margin-left:5px}
 .db-findings strong{text-transform:capitalize}.db-panel :focus-visible{outline:3px solid #317c66;outline-offset:2px}
 
 .ic-extra-rating{display:inline-block;margin-left:10px}
+
+.ic-suggestions button small{display:block;font-weight:400;color:var(--muted)}
+#name-feedback:empty{display:none}

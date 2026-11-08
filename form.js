@@ -1,7 +1,7 @@
 import {h,btnIcon} from './view.js';
 import {dayKey,dayNames,clockTime,shiftDay,hoursLabel,nextInterval,doseTimeLabel} from './schedule.js';
 import {icon} from './icons.js';
-import {suggestions} from './rules.js';
+import {searchProducts,nameFeedback} from './rules.js';
 import {scanControls,attachScanner} from './scan.js';
 function timeRow(t=''){return '<div class="time-row"><input type="time" aria-label="Dose time" name="times" required value="'+h(t)+'"><button type="button" class="icon-button" data-remove-time aria-label="Remove dose time">'+icon('close',16)+'</button></div>'}
 const hourChoices=[...Array.from({length:24},(_,i)=>i+1),36,48,72];
@@ -25,7 +25,7 @@ export function showEditor(dialog,med,category,settings,onSave,onRemove){
   const existing=med?.mode==='interval'?{...med,start:dayKey(new Date(med.anchorAt)),times:[clockTime(new Date(med.anchorAt))],end:med.untilAt==null?'':dayKey(new Date(med.untilAt-1))}:med;
   const m=existing||{category,name:'',dose:'',mode:category==='other'?'list':'daily',times:[''],days:[0,1,2,3,4,5,6],start:dayKey(new Date()),end:'',advance:null};
   dialog.innerHTML='<div class="modal-head"><div><h2 id="dialog-title">'+(med?'Edit medication':'Add medication')+'</h2><p>Use the dose and schedule on your current label.</p></div>'+btnIcon('close','Close dialog','close')+'</div><form id="med-form" class="med-form">'+(med?'':scanControls)+'<fieldset><legend>Medication group</legend><div class="group-picker">'+['stroke','other'].map(c=>'<label><input type="radio" name="category" value="'+c+'" '+(m.category===c?'checked':'')+'><span>'+icon(c==='stroke'?'heart':'pill',17)+(c==='stroke'?'Stroke medication':'Other medication')+'</span></label>').join('')+'</div></fieldset>'+
-  '<label>Medication name<input name="name" list="drug-names" autocomplete="off" placeholder="Name on the label" maxlength="120" required value="'+h(m.name)+'"></label><datalist id="drug-names">'+suggestions.map(s=>'<option value="'+h(s[0].toUpperCase()+s.slice(1))+'"></option>').join('')+'</datalist>'+
+  '<label>Medication name<input name="name" list="drug-names" autocomplete="off" placeholder="Name on the label" maxlength="240" aria-describedby="name-feedback" required value="'+h(m.name)+'"></label><datalist id="drug-names"></datalist><small id="name-feedback" role="status"></small>'+
   '<label>Strength on label <small>(optional)</small><input name="strength" maxlength="100" placeholder="Amount per tablet or concentration" value="'+h(m.strength)+'"></label>'+
   '<label>Dose per administration<input name="dose" maxlength="140" placeholder="Amount and unit from your label" required value="'+h(m.dose)+'"></label>'+
   '<label>Label directions <small>(optional)</small><textarea name="directions" maxlength="500" rows="2" placeholder="Instructions printed on the label">'+h(m.directions)+'</textarea></label>'+
@@ -39,6 +39,14 @@ export function showEditor(dialog,med,category,settings,onSave,onRemove){
   '<p id="form-error" class="error" role="alert" hidden></p><div class="form-buttons">'+(med?'<button class="danger-text" type="button" id="remove-med">Remove</button>':'')+'<button type="button" class="btn outline" data-action="close">Cancel</button><button type="submit" class="btn primary">Save medication</button></div></form>';
   const form=dialog.querySelector('form');
   const f=form.elements;
+  const nameField=f.namedItem('name'),list=form.querySelector('#drug-names'),feedback=form.querySelector('#name-feedback');
+  function showName(){
+    const value=nameField.value.trim();
+    feedback.textContent=value?nameFeedback(value):'';
+    list.innerHTML=value.length>1?searchProducts(value).map(p=>'<option value="'+h(p.display)+'" label="'+h(nameFeedback(p.display))+'"></option>').join(''):'';
+  }
+  nameField.addEventListener('input',showName);
+  showName();
   if(!med)attachScanner(dialog,form);
   const fixed=form.querySelector('#fixed-times'),interval=form.querySelector('#interval-fields'),preview=form.querySelector('#interval-preview');
   function updatePreview(){

@@ -1,5 +1,6 @@
-import {ddComponents,ddName,ddRating,ddSuggestions} from './ddinter.js';
-import {products,rxBrands} from './rxterms.js';
+import {ddComponents,ddIngredientReferences,ddRating} from './ddinter.js';
+import {nameKey,resolveName,findProducts} from './name-index.js';
+export {catalogSize,labelNameCount} from './name-index.js';
 const labelId = {
   nimodipineCapsules: 'e65d5108-22a2-4d87-a78d-15606f3cc9e2',
   simvastatin: '8f55d5de-5a4f-4a39-8c84-c53976dd6af9',
@@ -14,6 +15,7 @@ const labelId = {
 const aspirinSource='https://medlineplus.gov/druginfo/meds/a682878.html';
 const labelUrl=(drug)=>'https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid='+labelId[drug];
 const brandNames={
+  albuterol:['salbutamol'],acetaminophen:['paracetamol'],
   conivaptan:['Vaprisol','Conivaptan hydrochloride','Conivaptan IV','Vaprisol IV'],
   simvastatin:['Zocor'], 'nirmatrelvir/ritonavir':['Paxlovid'], ketoconazole:[], cyclosporine:[], danazol:[], erythromycin:[],
   nimodipine:['Nymalize','Nimotop'], atorvastatin:['Lipitor','Atorvastatin calcium'],
@@ -36,16 +38,6 @@ function clean(s){return s.toLowerCase().normalize('NFKD').replace(/[’'\.]/g,'
 const aliases=new Map();
 for(const [drug,brands] of Object.entries(brandNames)){
   for(const n of [drug,...brands])aliases.set(clean(n),drug);
-}
-export const suggestions=Object.entries(brandNames).flatMap(([generic,brands])=>[generic,...brands.slice(0,1)]).sort();
-export function ingredient(name){
-  let n=clean(name);
-  if(aliases.has(n))return aliases.get(n);
-  n=n.replace(/\s+\d+(?:\.\d+)?\s*(?:mg|mcg|g)(?:\s+(?:oral\s+)?(?:tablet|capsule)s?)?$/i,'');
-  if(aliases.has(n))return aliases.get(n);
-  const parens=name.match(/^([^()]+)\s*\(([^()]+)\)$/);
-  if(parens){const one=aliases.get(clean(parens[1])),two=aliases.get(clean(parens[2]));if(one&&one===two)return one}
-  return null;
 }
 const rules=new Map();
 function set(drug,others,level,reason,source=labelUrl(drug)){
@@ -86,54 +78,20 @@ const combos={
   'sacubitril/valsartan':['sacubitril','valsartan'],
   'trimethoprim/sulfamethoxazole':['sulfamethoxazole','trimethoprim']
 };
-const namedProducts=new Map(), bareProducts=new Map(), catalog=[];
-for(const [display,oral,components] of products){
-  const full=display.trim().toLowerCase();
-  const base=display.replace(/\s*\([^()]*\)\s*$/,'').trim().toLowerCase();
-  const form=display.match(/\(([^()]*)\)\s*$/)?.[1].toLowerCase();
-  const product={display,oral,form,components,search:clean(display+' '+components.join(' '))};
-  catalog.push(product);namedProducts.set(full,product);
-  if(!bareProducts.has(base))bareProducts.set(base,[]);
-  bareProducts.get(base).push(product);
+const curatedNames=new Map();
+for(const [drug,brands] of Object.entries(brandNames)){
+  const ingredients=(combos[drug]||[drug]).slice().sort();
+  for(const name of [drug,...brands])curatedNames.set(nameKey(name),ingredients);
 }
-for(const [brand,displays] of Object.entries(rxBrands)){
-  const variants=displays.map(display=>namedProducts.get(display.toLowerCase()));
-  if(variants.every(Boolean))bareProducts.set(brand,variants);
-}
-export const catalogSize=products.length;
 export const pairRuleCount=rules.size;
-export function searchProducts(query,limit=8){
-  const key=clean(query);
-  if(!key)return [];
-  const terms=key.split(' '),prefix=[],matches=[];
-  for(const product of catalog){
-    if(product.display.toLowerCase().startsWith(query.trim().toLowerCase())){
-      prefix.push(product);if(prefix.length===limit)break;
-    }else if(matches.length<limit&&terms.every(term=>product.search.includes(term)))matches.push(product);
-  }
-  const source=ddSuggestions(query,limit);
-  const exact=source.filter(p=>p.display.toLowerCase()===query.trim().toLowerCase());
-  const combined=[...exact,...prefix,...source,...matches];
-  return [...new Map(combined.map(p=>[p.display.toLowerCase(),p])).values()].slice(0,limit);
-}
-export function identify(name){
-  const full=name.trim().toLowerCase();
-  const exact=namedProducts.get(full);
-  if(exact)return {components:exact.components,form:exact.form,route:exact.oral?'oral':'other',matched:true};
-  const simple=full.replace(/\s+\d+(?:\.\d+)?\s*(?:mg|mcg|g)(?:\s+(?:oral\s+)?(?:tablet|capsule)s?)?$/,'');
-  const variants=bareProducts.get(simple);
-  if(variants?.length&&variants.every(p=>p.components.join('|')===variants[0].components.join('|'))){
-    const sharedForm=variants.every(p=>p.form===variants[0].form)?variants[0].form:undefined;
-    return {components:variants[0].components,form:variants[0].components[0]==='nimodipine'&&/\bcapsules?$/.test(full)?'oral pill':sharedForm,route:variants.some(p=>p.oral)?'unspecified':'other',matched:true};
-  }
-  if(variants?.length)return {components:[],route:'unknown',matched:false};
-  const capsule=full.match(/^(nimotop|nimodipine)(?:\s+\d+(?:\.\d+)?\s*mg)?\s+(?:oral\s+)?capsules?$/);
-  if(capsule)return {components:['nimodipine'],route:'oral',form:'oral pill',matched:true};
-  const known=ingredient(name);
-  if(known)return {components:combos[known]||[known],route:'unspecified',matched:true};
-  const reference=ddName(name);
-  if(reference)return {components:[reference.toLowerCase()],route:name.includes('(')?'other':'unspecified',matched:true};
-  return {components:[],route:'unknown',matched:false};
+export const identify=name=>resolveName(name,curatedNames);
+export const searchProducts=(query,limit=8)=>findProducts(query,limit,curatedNames);
+
+export function nameFeedback(name){
+  const profile=identify(name);
+  if(!profile.matched)return profile.ambiguous?'Name needs confirmation. Choose the matching product on the label.':'Name unrecognized. Check the spelling or choose a suggested product.';
+  const form=profile.form?' · '+profile.form:profile.route==='unspecified'||profile.route==='other'?' · Confirm the formulation':'';
+  return profile.components.join(' + ')+form;
 }
 function ruleIngredients(profile,includeOtherRoutes=false){
   if(!includeOtherRoutes&&profile.route==='other')return [];
@@ -172,9 +130,10 @@ export function compare(meds){
   const profiles=meds.map(m=>identify(m.name));
   const ingredients=profiles.map(profile=>ruleIngredients(profile,true));
   const sourceIds=meds.map((m,i)=>ddComponents(m.name,profiles[i]));
+  const references=meds.map((m,i)=>ddIngredientReferences(m.name,profiles[i]));
   const result=[];
   for(let i=0;i<meds.length;i++)for(let j=i+1;j<meds.length;j++){
-    const a=meds[i],b=meds[j],details=[];
+    const a=meds[i],b=meds[j],details=[],routeNotes=[];
     const shared=profiles[i].components.filter(c=>profiles[j].components.includes(c));
     if(shared.length||clean(a.name)===clean(b.name)){
       const reason=shared.length?'Both entries contain '+shared.join(', ')+'.':'The two entries have the same name.';
@@ -192,8 +151,14 @@ export function compare(meds){
     for(const [leftIndex,left] of profiles[i].components.entries()){
       for(const [rightIndex,right] of profiles[j].components.entries()){
         const severity=ddRating(sourceIds[i][leftIndex],sourceIds[j][rightIndex]);
-        if(!severity)continue;
         const x=generalIngredient(left),y=generalIngredient(right);
+        if(!severity){
+          if(!covered.has(x+'|'+y) && (sourceIds[i][leftIndex]===undefined || sourceIds[j][rightIndex]===undefined)){
+            const general=ddRating(references[i][leftIndex],references[j][rightIndex]);
+            if(general)routeNotes.push({ingredients:[left,right],severity:general});
+          }
+          continue;
+        }
         covered.add(x+'|'+y);
         const existing=details.find(d=>d.ingredients?.[0]===x&&d.ingredients[1]===y);
         if(existing){existing.ddSeverity=severity;continue;}
@@ -204,7 +169,7 @@ export function compare(meds){
     details.sort((x,y)=>priority(x)-priority(y));
     const hasGaps=!profiles[i].matched||!profiles[j].matched||
       profiles[i].components.some(left=>profiles[j].components.some(right=>left!==right&&!covered.has((aliases.get(clean(left))||left)+'|'+(aliases.get(clean(right))||right))));
-    result.push({a,b,details,hasGaps,priority:details.length?priority(details[0]):rank.unassessed,...(details[0]||{level:'unassessed',reason:'No matching rule in Dosewell for this pair.'})});
+    result.push({a,b,details,routeNotes,hasGaps,priority:details.length?priority(details[0]):rank.unassessed,...(details[0]||{level:'unassessed',reason:'No matching rule in Dosewell for this pair.'})});
   }
   return result.sort((x,y)=>x.priority-y.priority);
 }

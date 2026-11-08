@@ -1,6 +1,6 @@
 import {ddPairCount} from './ddinter.js';
 import {attachDrugBank} from './drugbank-checker.js';
-import {catalogSize,compare,identify,labelNotes,pairRuleCount,searchProducts,warningLabel} from './rules.js';
+import {catalogSize,labelNameCount,compare,nameFeedback,labelNotes,pairRuleCount,searchProducts,warningLabel} from './rules.js';
 import {h} from './view.js';
 import {icon} from './icons.js';
 
@@ -28,18 +28,12 @@ export function includeSavedInCheck(id){
 function sourceLink(url,label){
   return url?'<a class="text-link" href="'+h(url)+'" target="_blank" rel="noopener noreferrer">'+(label||(url.includes('ddinter2.scbdd.com')?'View the DDInter source':url.includes('medlineplus.gov')?'Read MedlinePlus guidance':'Read the DailyMed label'))+' '+icon('go',14)+'</a>':'';
 }
-function profileText(name){
-  const profile=identify(name);
-  if(!profile.matched)return 'Name unrecognized. Check the spelling and formulation.';
-  const form=profile.route==='other'?' · Confirm the route and formulation':profile.route==='unspecified'?' · Confirm the formulation':'';
-  return profile.components.join(' + ')+form;
-}
 function results(entries){
   const pairs=compare(entries),notes=labelNotes(entries);
   const items=[];
   for(const pair of pairs){
     const title=pair.a.name+' + '+pair.b.name;
-    if(pair.hasGaps||!pair.details.length)items.push({group:'unknown',title});
+    if(pair.hasGaps||!pair.details.length)items.push({group:'unknown',title,routeNotes:pair.routeNotes});
     for(const detail of pair.details){
       items.push({...detail,group:detail.level==='duplicate'?'duplicate':'drug',title});
     }
@@ -47,7 +41,10 @@ function results(entries){
   return items.concat(notes);
 }
 function reportItem(item){
-  if(item.group==='unknown')return '<li class="ic-unknown">'+h(item.title)+'</li>';
+  if(item.group==='unknown'){
+    const notes=(item.routeNotes||[]).map(n=>'<p>DDInter lists '+h(n.ingredients.join(' + '))+' (severity: '+h(n.severity.toLowerCase())+'). A pharmacist needs to confirm whether this applies to the selected formulations.</p>').join('');
+    return '<li class="ic-unknown">'+h(item.title)+notes+'</li>';
+  }
   const marker=warningLabel[item.level]||(item.group==='food'?'Food and drink':'If this condition applies');
   const rating=item.ddSeverity && !item.source?.includes('ddinter2.scbdd.com')?'<span class="ic-marker ic-extra-rating">DDInter · '+h(item.ddSeverity==='Unknown'?'Severity unknown':item.ddSeverity)+'</span>':'';
   return '<li class="ic-finding '+(item.level==='contraindicated'||item.level==='avoid'||item.ddSeverity==='Major'?'ic-avoid':'')+'"><span class="ic-marker">'+h(marker)+'</span>'+rating+'<h4>'+h(item.title)+'</h4>'+
@@ -68,7 +65,7 @@ export function showInteractionChecker(main,state){
     '<div class="ic-list-actions"><button id="ic-check" class="btn primary" type="button">Check interactions</button><button id="ic-restore" class="text-link" type="button">Use my saved list</button><button id="ic-clear" class="text-link" type="button">Clear checker</button></div></section>'+
     '<section class="panel ic-results" aria-labelledby="ic-results-title"><h2 id="ic-results-title" tabindex="-1">Interaction report</h2>'+
     '<p>Dosewell searches '+ddPairCount.toLocaleString('en-US')+' published drug pairs on this device. A missing result cannot confirm that medicines are safe together. Ask your pharmacist before changing a dose.</p>'+
-    '<div id="ic-report"></div><details class="ic-coverage"><summary>Coverage and sources</summary><p>The <a class="text-link" href="https://ddinter2.scbdd.com/download/" target="_blank" rel="noopener noreferrer">DDInter 2.0 downloadable records</a> provide ingredient pairs and their reported severity. Dosewell merged duplicate records from all eight download files. The published site includes additional records. Dose, timing and medical history are outside this search.</p><p>DDInter 2.0 © Computational Biology &amp; Drug Design Group. Source release dated May 14, 2024. Downloaded November 8, 2026. Dosewell’s adapted index is shared under <a class="text-link" href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC-SA 4.0</a> for noncommercial use. The source may contain errors and omissions.</p><p>Search '+catalogSize.toLocaleString('en-US')+' product names and forms from the November 2026 NLM RxTerms catalog. Dosewell also explains '+pairRuleCount+' selected ingredient pairs using DailyMed labels and MedlinePlus guidance. An ingredient match identifies a medicine and does not establish safety.</p><p>Food and condition notes cover selected label precautions. They do not use your medical history. Dose, route, supplements and other health factors may change the risk.</p></details></section></div>';
+    '<div id="ic-report"></div><details class="ic-coverage"><summary>Coverage and sources</summary><p>The <a class="text-link" href="https://ddinter2.scbdd.com/download/" target="_blank" rel="noopener noreferrer">DDInter 2.0 downloadable records</a> provide ingredient pairs and their reported severity. Dosewell merged duplicate records from all eight download files. The published site includes additional records. Dose, timing and medical history are outside this search.</p><p>DDInter 2.0 © Computational Biology &amp; Drug Design Group. Source release dated May 14, 2024. Downloaded November 8, 2026. Dosewell’s adapted index is shared under <a class="text-link" href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC-SA 4.0</a> for noncommercial use. The source may contain errors and omissions.</p><p>Search '+catalogSize.toLocaleString('en-US')+' product names and forms using '+labelNameCount.toLocaleString('en-US')+' product label names from the November 2026 NLM RxTerms and RxNorm releases. Brand and generic names are checked by active ingredient. Unclear entries need confirmation. Dosewell also explains '+pairRuleCount+' selected ingredient pairs using DailyMed labels and MedlinePlus guidance. An ingredient match identifies a medicine and does not establish safety.</p><p>Food and condition notes cover selected label precautions. They do not use your medical history. Dose, route, supplements and other health factors may change the risk.</p></details></section></div>';
   const el=id=>main.querySelector('#'+id);
   const updateDrugBank=attachDrugBank(main);
   const input=el('ic-query'),matches=el('ic-matches'),feedback=el('ic-feedback'),report=el('ic-report');
@@ -98,7 +95,7 @@ export function showInteractionChecker(main,state){
   function drawList(){
     rows=state.meds.filter(m=>!current.hidden.includes(m.id)).map(m=>({...m,saved:true})).concat(current.extra.map((name,index)=>({id:'trial:'+index,name,saved:false,index})));
     const list=el('ic-selection');
-    list.innerHTML=rows.map((m,i)=>'<li><div><strong>'+h(m.name)+'</strong><small>'+h(profileText(m.name))+'</small></div><button class="ic-remove" type="button" data-ic-remove="'+i+'" aria-label="Remove '+h(m.name)+' from this check">'+icon('close',18)+'</button></li>').join('');
+    list.innerHTML=rows.map((m,i)=>'<li><div><strong>'+h(m.name)+'</strong><small>'+h(nameFeedback(m.name))+'</small></div><button class="ic-remove" type="button" data-ic-remove="'+i+'" aria-label="Remove '+h(m.name)+' from this check">'+icon('close',18)+'</button></li>').join('');
     el('ic-check').disabled=rows.length===0;el('ic-clear').hidden=rows.length===0;
     el('ic-restore').hidden=!state.meds.length||(!current.extra.length&&!current.hidden.length);
     findings=results(rows);unknownLimit=12;drawReport();updateDrugBank(rows);
@@ -118,8 +115,11 @@ export function showInteractionChecker(main,state){
     const list=document.createElement('ul');list.className='ic-suggestions';list.setAttribute('aria-label','Matching medicines');
     for(const p of options){
       const li=document.createElement('li'),b=document.createElement('button');b.type='button';b.textContent=p.display;
+      const detail=nameFeedback(p.display);
+      if(!p.similar&&detail){const small=document.createElement('small');small.textContent=detail;b.append(small);}
       b.onclick=()=>add(p.display);li.append(b);list.append(li);
     }
+    if(options[0].similar){const hint=document.createElement('p');hint.textContent='Similar spellings. Choose only a name that matches your label.';matches.append(hint);}
     matches.append(list);
   }
   input.oninput=suggest;

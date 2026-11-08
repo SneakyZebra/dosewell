@@ -1,4 +1,4 @@
-import {ingredient} from './rules.js';
+import {identify} from './rules.js';
 
 const strengthPattern = /(?:\d+(?:\.\d+)?|\.\d+)\s*(?:mcg|µg|μg|mg|grams?|g|units?|iu|%)(?![a-z])(?:\s*\/\s*(?:\d+(?:\.\d+)?\s*)?(?:ml|l|hr|h|g|actuation|dose)\b)?/i;
 const directionStart = /^(?:(?:sig|directions?|instructions?)\s*:\s*)?(?:take|give|use|apply|inject|instill|place|inhale|chew|dissolve|insert|swallow)\b/i;
@@ -33,11 +33,11 @@ export function readLabel(text, confidence = 100, weakLines = []) {
     if (!strength) continue;
     let name = line.slice(0,strength.index).trim();
     let nameLine = lines[i];
-    if (!name && i && ingredient(fieldLine(lines[i-1]))) {
+    if (!name && i && identify(fieldLine(lines[i-1])).matched) {
       name = fieldLine(lines[i-1]);
       nameLine = lines[i-1];
     }
-    if (!looksLikeName(name)) { uncertainProduct = true; continue; }
+    if (!looksLikeName(name) && !identify(name).matched) { uncertainProduct = true; continue; }
     const tail = line.slice(strength.index+strength[0].length);
     if (/\d|^\s*[/+–-]/.test(tail)) { uncertainProduct = true; continue; }
     // Keep release modifiers with the printed product description even if they follow its strength.
