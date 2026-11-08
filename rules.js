@@ -1,6 +1,7 @@
 import {ddComponents,ddName,ddRating,ddSuggestions} from './ddinter.js';
 import {products,rxBrands} from './rxterms.js';
 const labelId = {
+  nimodipineCapsules: 'e65d5108-22a2-4d87-a78d-15606f3cc9e2',
   simvastatin: '8f55d5de-5a4f-4a39-8c84-c53976dd6af9',
   nimodipine: 'e660fa26-b5c4-4d6d-8887-9e22b6666a10',
   atorvastatin: 'e91c673d-c26c-4ff1-90d2-2b9d47a8d771',
@@ -13,6 +14,7 @@ const labelId = {
 const aspirinSource='https://medlineplus.gov/druginfo/meds/a682878.html';
 const labelUrl=(drug)=>'https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid='+labelId[drug];
 const brandNames={
+  conivaptan:['Vaprisol','Conivaptan hydrochloride','Conivaptan IV','Vaprisol IV'],
   simvastatin:['Zocor'], 'nirmatrelvir/ritonavir':['Paxlovid'], ketoconazole:[], cyclosporine:[], danazol:[], erythromycin:[],
   nimodipine:['Nymalize','Nimotop'], atorvastatin:['Lipitor','Atorvastatin calcium'],
   lisinopril:['Zestril','Prinivil'], amlodipine:['Norvasc'], metoprolol:['Lopressor','Toprol XL','Metoprolol succinate','Metoprolol tartrate'], losartan:['Cozaar'], hydrochlorothiazide:['Microzide','HCTZ'], apixaban:['Eliquis'], rivaroxaban:['Xarelto'],
@@ -50,7 +52,9 @@ function set(drug,others,level,reason,source=labelUrl(drug)){
   for(const other of others)rules.set([drug,other].sort().join('|'),{level,reason,source});
 }
 const inducers=['carbamazepine','phenytoin','rifampin','st johns wort'];
-set('nimodipine',['clarithromycin','itraconazole','ritonavir'],'avoid','These medicines can raise nimodipine levels and cause a serious drop in blood pressure. The label generally advises avoiding this combination.');
+// Systemic strong inhibitors explicitly named in the U.S. nimodipine oral solution label, sections 5.3 and 7.2.
+const nimodipineStrongInhibitors=new Set(['clarithromycin','telithromycin','indinavir','nelfinavir','ritonavir','saquinavir','boceprevir','telaprevir','ketoconazole','itraconazole','posaconazole','voriconazole','conivaptan','delavirdine','nefazodone']);
+set('nimodipine',nimodipineStrongInhibitors,'avoid','Strong CYP3A4 inhibitors can raise nimodipine levels and cause a dangerous drop in blood pressure.');
 set('nimodipine',[...inducers,'phenobarbital'],'avoid','This combination can lower nimodipine levels and reduce its effect. The label generally advises avoiding it.');
 set('nimodipine',['lisinopril','amlodipine','metoprolol','losartan','hydrochlorothiazide'],'review','Taking these together can lower blood pressure further. Ask your care team whether additional blood pressure checks are needed.');
 set('nimodipine',['fluconazole','fluoxetine','amiodarone'],'review','Nimodipine levels may rise and lower your blood pressure. Ask your prescriber about blood pressure checks.');
@@ -86,7 +90,8 @@ const namedProducts=new Map(), bareProducts=new Map(), catalog=[];
 for(const [display,oral,components] of products){
   const full=display.trim().toLowerCase();
   const base=display.replace(/\s*\([^()]*\)\s*$/,'').trim().toLowerCase();
-  const product={display,oral,components,search:clean(display+' '+components.join(' '))};
+  const form=display.match(/\(([^()]*)\)\s*$/)?.[1].toLowerCase();
+  const product={display,oral,form,components,search:clean(display+' '+components.join(' '))};
   catalog.push(product);namedProducts.set(full,product);
   if(!bareProducts.has(base))bareProducts.set(base,[]);
   bareProducts.get(base).push(product);
@@ -114,29 +119,47 @@ export function searchProducts(query,limit=8){
 export function identify(name){
   const full=name.trim().toLowerCase();
   const exact=namedProducts.get(full);
-  if(exact)return {components:exact.components,route:exact.oral?'oral':'other',matched:true};
+  if(exact)return {components:exact.components,form:exact.form,route:exact.oral?'oral':'other',matched:true};
   const simple=full.replace(/\s+\d+(?:\.\d+)?\s*(?:mg|mcg|g)(?:\s+(?:oral\s+)?(?:tablet|capsule)s?)?$/,'');
   const variants=bareProducts.get(simple);
   if(variants?.length&&variants.every(p=>p.components.join('|')===variants[0].components.join('|'))){
-    return {components:variants[0].components,route:variants.some(p=>p.oral)?'unspecified':'other',matched:true};
+    const sharedForm=variants.every(p=>p.form===variants[0].form)?variants[0].form:undefined;
+    return {components:variants[0].components,form:variants[0].components[0]==='nimodipine'&&/\bcapsules?$/.test(full)?'oral pill':sharedForm,route:variants.some(p=>p.oral)?'unspecified':'other',matched:true};
   }
   if(variants?.length)return {components:[],route:'unknown',matched:false};
+  const capsule=full.match(/^(nimotop|nimodipine)(?:\s+\d+(?:\.\d+)?\s*mg)?\s+(?:oral\s+)?capsules?$/);
+  if(capsule)return {components:['nimodipine'],route:'oral',form:'oral pill',matched:true};
   const known=ingredient(name);
   if(known)return {components:combos[known]||[known],route:'unspecified',matched:true};
   const reference=ddName(name);
   if(reference)return {components:[reference.toLowerCase()],route:name.includes('(')?'other':'unspecified',matched:true};
   return {components:[],route:'unknown',matched:false};
 }
-function ruleIngredients(profile){
-  if(profile.route==='other')return [];
+function ruleIngredients(profile,includeOtherRoutes=false){
+  if(!includeOtherRoutes&&profile.route==='other')return [];
   const list=profile.components.map(c=>aliases.get(clean(c))||c);
   for(const [pair,parts] of Object.entries(combos)){
     if(parts.every(p=>list.includes(p)))list.push(pair);
   }
   return list;
 }
-const rank={avoid:0,major:1,duplicate:2,review:3,moderate:4,minor:5,unknownSeverity:6,unassessed:7};
-export const warningLabel={avoid:'Label advises avoidance',review:'Pharmacist review',duplicate:'Possible duplicate',major:'DDInter · Major',moderate:'DDInter · Moderate',minor:'DDInter · Minor',unknownSeverity:'DDInter · Severity unknown',unassessed:'Unassessed'};
+function labelWarning(left,right,x,y,rule){
+  if(!rule)return null;
+  const nimodipine=x==='nimodipine'?left:y==='nimodipine'?right:null;
+  const inhibitor=x==='nimodipine'?y:x;
+  if(nimodipine && nimodipineStrongInhibitors.has(inhibitor)){
+    const partner=x==='nimodipine'?right:left;
+    if(nimodipine.route==='other'||(partner.route==='other'&&partner.form!=='injectable'))return null;
+    const name=inhibitor[0].toUpperCase()+inhibitor.slice(1);
+    const risk=name+' can raise nimodipine levels and cause a dangerous drop in blood pressure. ';
+    const advice='Contact your prescriber or pharmacist before the next dose for instructions.';
+    if(nimodipine.form==='oral pill')return {level:'contraindicated',reason:risk+'The nimodipine capsule label lists this combination of medicines as contraindicated. '+advice,source:labelUrl('nimodipineCapsules'),secondarySource:labelUrl('nimodipine')};
+    return {...rule,reason:risk+'The oral solution label advises generally avoiding this combination. The capsule label lists it as contraindicated. '+advice,secondarySource:labelUrl('nimodipineCapsules')};
+  }
+  return left.route==='other'||right.route==='other'?null:rule;
+}
+const rank={contraindicated:-1,avoid:0,major:1,duplicate:2,review:3,moderate:4,minor:5,unknownSeverity:6,unassessed:7};
+export const warningLabel={contraindicated:'Contraindicated · capsule label',avoid:'Label advises avoidance',review:'Pharmacist review',duplicate:'Possible duplicate',major:'DDInter · Major',moderate:'DDInter · Moderate',minor:'DDInter · Minor',unknownSeverity:'DDInter · Severity unknown',unassessed:'Unassessed'};
 const ddLevels={Major:'major',Moderate:'moderate',Minor:'minor',Unknown:'unknownSeverity'};
 const ddReasons={
   Major:'DDInter flags a potentially serious interaction. Contact your pharmacist or prescriber promptly to review this combination.',
@@ -147,7 +170,7 @@ const ddReasons={
 const generalIngredient=name=>aliases.get(clean(name))||name;
 export function compare(meds){
   const profiles=meds.map(m=>identify(m.name));
-  const ingredients=profiles.map(ruleIngredients);
+  const ingredients=profiles.map(profile=>ruleIngredients(profile,true));
   const sourceIds=meds.map((m,i)=>ddComponents(m.name,profiles[i]));
   const result=[];
   for(let i=0;i<meds.length;i++)for(let j=i+1;j<meds.length;j++){
@@ -159,7 +182,7 @@ export function compare(meds){
     }
     const seen=new Set(), covered=new Set();
     for(const x of ingredients[i])for(const y of ingredients[j]){
-      const key=[x,y].sort().join('|'),match=rules.get(key);
+      const key=[x,y].sort().join('|'),match=labelWarning(profiles[i],profiles[j],x,y,rules.get(key));
       if(match&&!seen.has(key)){
         seen.add(key);
         for(const left of combos[x]||[x])for(const right of combos[y]||[y])covered.add(left+'|'+right);

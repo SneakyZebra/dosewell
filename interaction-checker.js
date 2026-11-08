@@ -25,8 +25,8 @@ export function includeSavedInCheck(id){
   current.hidden=current.hidden.filter(value=>value!==id);
   keepDraft();
 }
-function sourceLink(url){
-  return url?'<a class="text-link" href="'+h(url)+'" target="_blank" rel="noopener noreferrer">'+(url.includes('ddinter2.scbdd.com')?'View the DDInter source':url.includes('medlineplus.gov')?'Read MedlinePlus guidance':'Read the DailyMed label')+' '+icon('go',14)+'</a>':'';
+function sourceLink(url,label){
+  return url?'<a class="text-link" href="'+h(url)+'" target="_blank" rel="noopener noreferrer">'+(label||(url.includes('ddinter2.scbdd.com')?'View the DDInter source':url.includes('medlineplus.gov')?'Read MedlinePlus guidance':'Read the DailyMed label'))+' '+icon('go',14)+'</a>':'';
 }
 function profileText(name){
   const profile=identify(name);
@@ -50,9 +50,9 @@ function reportItem(item){
   if(item.group==='unknown')return '<li class="ic-unknown">'+h(item.title)+'</li>';
   const marker=warningLabel[item.level]||(item.group==='food'?'Food and drink':'If this condition applies');
   const rating=item.ddSeverity && !item.source?.includes('ddinter2.scbdd.com')?'<span class="ic-marker ic-extra-rating">DDInter · '+h(item.ddSeverity==='Unknown'?'Severity unknown':item.ddSeverity)+'</span>':'';
-  return '<li class="ic-finding '+(item.level==='avoid'||item.ddSeverity==='Major'?'ic-avoid':'')+'"><span class="ic-marker">'+h(marker)+'</span>'+rating+'<h4>'+h(item.title)+'</h4>'+
+  return '<li class="ic-finding '+(item.level==='contraindicated'||item.level==='avoid'||item.ddSeverity==='Major'?'ic-avoid':'')+'"><span class="ic-marker">'+h(marker)+'</span>'+rating+'<h4>'+h(item.title)+'</h4>'+
     (item.drug?'<p class="ic-ingredient">'+h(item.drug)+'</p>':item.ingredients?'<p class="ic-ingredient">Ingredients reviewed · '+h(item.ingredients.join(' + '))+'</p>':'')+
-    '<p>'+h(item.reason)+'</p>'+sourceLink(item.source)+'</li>';
+    '<p>'+h(item.reason)+'</p>'+(item.secondarySource?sourceLink(item.source,item.level==='contraindicated'?'Capsule prescribing information':'Oral solution prescribing information')+' · '+sourceLink(item.secondarySource,item.level==='contraindicated'?'Oral solution prescribing information':'Capsule prescribing information'):sourceLink(item.source))+'</li>';
 }
 
 export function showInteractionChecker(main,state){
@@ -68,7 +68,7 @@ export function showInteractionChecker(main,state){
     '<div class="ic-list-actions"><button id="ic-check" class="btn primary" type="button">Check interactions</button><button id="ic-restore" class="text-link" type="button">Use my saved list</button><button id="ic-clear" class="text-link" type="button">Clear checker</button></div></section>'+
     '<section class="panel ic-results" aria-labelledby="ic-results-title"><h2 id="ic-results-title" tabindex="-1">Interaction report</h2>'+
     '<p>Dosewell searches '+ddPairCount.toLocaleString('en-US')+' published drug pairs on this device. A missing result cannot confirm that medicines are safe together. Ask your pharmacist before changing a dose.</p>'+
-    '<div id="ic-report"></div><details class="ic-coverage"><summary>Coverage and sources</summary><p>The <a class="text-link" href="https://ddinter2.scbdd.com/download/" target="_blank" rel="noopener noreferrer">DDInter 2.0 downloadable records</a> provide ingredient pairs and their reported severity. Dosewell merged duplicate records from all eight download files. The published site includes additional records. Dose, timing and medical history are outside this search.</p><p>DDInter 2.0 © Computational Biology &amp; Drug Design Group. Source release dated May 14, 2024. Downloaded November 8, 2026. Dosewell’s adapted index is shared under <a class="text-link" href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC-SA 4.0</a> for noncommercial use. The source may contain errors and omissions.</p><p>Search '+catalogSize.toLocaleString('en-US')+' product names and forms from the November 2026 NLM RxTerms catalog. Dosewell also explains '+pairRuleCount+' selected oral ingredient pairs using DailyMed labels and MedlinePlus guidance. An ingredient match identifies a medicine and does not establish safety.</p><p>Food and condition notes cover selected label precautions. They do not use your medical history. Dose, route, supplements and other health factors may change the risk.</p></details></section></div>';
+    '<div id="ic-report"></div><details class="ic-coverage"><summary>Coverage and sources</summary><p>The <a class="text-link" href="https://ddinter2.scbdd.com/download/" target="_blank" rel="noopener noreferrer">DDInter 2.0 downloadable records</a> provide ingredient pairs and their reported severity. Dosewell merged duplicate records from all eight download files. The published site includes additional records. Dose, timing and medical history are outside this search.</p><p>DDInter 2.0 © Computational Biology &amp; Drug Design Group. Source release dated May 14, 2024. Downloaded November 8, 2026. Dosewell’s adapted index is shared under <a class="text-link" href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-NC-SA 4.0</a> for noncommercial use. The source may contain errors and omissions.</p><p>Search '+catalogSize.toLocaleString('en-US')+' product names and forms from the November 2026 NLM RxTerms catalog. Dosewell also explains '+pairRuleCount+' selected ingredient pairs using DailyMed labels and MedlinePlus guidance. An ingredient match identifies a medicine and does not establish safety.</p><p>Food and condition notes cover selected label precautions. They do not use your medical history. Dose, route, supplements and other health factors may change the risk.</p></details></section></div>';
   const el=id=>main.querySelector('#'+id);
   const updateDrugBank=attachDrugBank(main);
   const input=el('ic-query'),matches=el('ic-matches'),feedback=el('ic-feedback'),report=el('ic-report');
